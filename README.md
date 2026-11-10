@@ -1,88 +1,155 @@
 # MockLab
 
-> Design the API. Mock it in seconds. Prove it in CI.
+> **Design the API. Mock it in seconds. Prove it in CI.**
 
-MockLab is a developer-first API mocking and contract-testing platform supporting OpenAPI 3.0/3.1 and GraphQL schemas.
+MockLab is a high-performance, developer-first API mocking and contract-testing platform. It enables frontend and backend teams to decouple development, simulate real-world network edge cases, manage stateful scenarios, and verify API contract compatibility automatically in continuous integration.
 
-## Tech Stack
-- **Web**: Next.js 15 (App Router), React 19, Tailwind v4 ("Signal Lime on Graphite" design system), `next-themes`.
-- **API**: NestJS 11, Prisma ORM, BullMQ queue engine, ioredis.
-- **Shared**: Zod schemas, TypeScript strict types, design system tokens.
-- **Database & Queue**: PostgreSQL 16 + Redis 7 (via Docker Compose).
+[![CI](https://github.com/razikuljoni/MockLab/actions/workflows/ci.yml/badge.svg)](https://github.com/razikuljoni/MockLab/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript: 5.8](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
+[![Next.js: 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+[![NestJS: 11](https://img.shields.io/badge/NestJS-11-red.svg)](https://nestjs.com/)
 
-## Design System
-- **Theme**: "Signal Lime on Graphite" (§3.1)
-- **Primary Accent**: Electric Signal Lime `#BFFF3C` (dark default) / `#65A30D` (light)
-- **Background Surfaces**: `#101208` (app bg), `#171A10` (panels/cards), `#0C0E07` (code editor)
-- **Fonts**: Geist / Inter (Display / UI) + JetBrains Mono (Code)
+---
 
-## BullMQ Redis Spike Findings (Phase 0)
-- **Upstash REST Redis**: Upstash free tier uses HTTP/REST semantics which does not support long-lived blocking Redis commands (`BLMOVE`, `BRPOPLPUSH`) required by BullMQ background workers.
-- **Decision**:
-  - **Local Development**: Standard TCP Redis 7 container via `docker compose up -d` on port `6379`.
-  - **Production Free-Tier**: Standard managed TCP Redis instance (e.g. Render / Railway / Aiven free tier) or Upstash standard Redis with TCP/TLS endpoint.
+## Key Highlights
+
+- **OpenAPI 3.0 / 3.1 & GraphQL Spec Import**: Instant mock generation with recursive `$ref` resolution, circular reference protection, and JSONPath error highlighting.
+- **Dynamic Catch-All Mock Router (`/m/:slug/*`)**: Priority-ordered matching clauses (headers, params, JSONPath body) with Handlebars templating (`{{uuid}}`, `{{body.name}}`, `{{now}}`).
+- **WireMock-Style Near-Miss Diagnostics**: Unmatched requests return an actionable `404 Not Found` report naming the closest candidate rule and the exact missed clause.
+- **Stateful Scenarios & Buckets**: In-memory and Redis-backed state machine engines supporting CRUD operations on collection buckets with isolated scenario keys.
+- **Interactive Request Playground**: Real-time cURL generator, live rule prediction, split latency breakdown (DNS, TCP, TTFB), and validation warnings.
+- **Traffic Inspector**: Non-blocking asynchronous batch queue with sensitive auth header redaction, 100 KB payload safety cap, and 1-click "Create rule from request".
+- **Contract Drift Verification**: Deep structural JSON diffing with strict `PASS`, `BREAKING`, `NON_BREAKING`, and `ERROR` classification and live provider verification.
+- **Automated CI Integration**: Copyable GitHub Actions YAML, exit-code pipeline gates, scheduled automated sweeps, and dynamic SVG badges.
+- **Multi-Tenant RBAC & Security**: Stripe-style API tokens (`mk_live_`, `mk_test_`), 60-second sliding-window rate limiting, and Owner/Admin/Editor/Viewer role matrix.
+
+---
+
+## 24-Screen Application Map
+
+Every screen in MockLab is built to the Stitch visual reference using the dark-mode token system (`#101208` Canvas, `#16190B` Surface, `#282F14` Border, `#BFFF3C` Electric Lime):
+
+| # | Screen Name | Route | Purpose |
+|---|---|---|---|
+| 1 | **Landing Page** | `/` | Hero section, interactive terminal demo, feature breakdown, CTA |
+| 2 | **Pricing** | `/pricing` | Free (\$0), Pro (\$19), and Team (\$79) tiers with feature matrices |
+| 3 | **Documentation** | `/docs` | 5-minute quickstart, OpenAPI import guide, templating reference |
+| 4 | **Authentication** | `/login`, `/signup`, `/forgot` | Email/password login, JWT tokens, automatic workspace provisioning |
+| 5 | **Dashboard** | `/dashboard` | Workspace metrics, quick actions, active project cards |
+| 6 | **Projects List** | `/projects` | Project overview, search filtering, contract status indicators |
+| 7 | **Project Overview** | `/projects/[id]` | Live/Paused toggle, Reset State trigger, hit rate charts, tags |
+| 8 | **Import Spec** | `/projects/[id]/import` | URL, upload, or paste OpenAPI 3.0/3.1 specs with re-import diffs |
+| 9 | **Endpoints List** | `/projects/[id]/endpoints` | Grouped by tag, HTTP method chips, rule counters, hit telemetry |
+| 10 | **Request Playground** | `/projects/[id]/playground` | Mock/Real proxy, headers editor, cURL export, TTFB breakdown |
+| 11 | **Rules Editor** | `/projects/[id]/endpoints/[op]/rules` | Priority dragging, matchers, Handlebars templates, faults |
+| 12 | **Stateful Scenarios** | `/projects/[id]/scenarios` | Stepper transitions, active bucket data table, state reset dialog |
+| 13 | **Traffic Inspector** | `/projects/[id]/logs` | Dense 32px log table, Near-Miss diagnosis, 1-click rule generator |
+| 14 | **Contract Tests List** | `/projects/[id]/contracts` | Expectations table, "Run All" trigger, verdict summaries |
+| 15 | **Contract Run Detail** | `/projects/[id]/contracts/runs/[runId]` | Side-by-side synchronized diff, character-level highlights |
+| 16 | **Contract Schedules** | `/projects/[id]/contracts/schedules` | `@hourly`, `@daily`, `@weekly` automated sweeps |
+| 17 | **CI Integration** | `/projects/[id]/ci` | 1-click GitHub Actions YAML, GitLab CI template, SVG badges |
+| 18 | **Team & Roles** | `/workspace/team` | Team table, role switcher (Owner/Admin/Editor/Viewer), invites |
+| 19 | **API Keys** | `/workspace/keys` | Stripe-style key generation, SHA-256 storage, show-once modal |
+| 20 | **Workspace Settings** | `/workspace/settings` | Default environment, mock auth default, retention, danger zone |
+| 21 | **Billing & Plans** | `/workspace/billing` | Quota consumption meters, plan upgrade cards, invoice history |
+| 22 | **Account Settings** | `/account` | User profile, password management, notification toggles |
+| 23 | **Status & Error States** | `/_not-found`, `/status` | 404 Near-Miss search, 503 paused, 429 rate limit, spec errors |
+| 24 | **Design System Board** | `/design-system` | Color swatches, typography scales, primitives, WCAG AA matrix |
+
+---
 
 ## Local Quickstart
 
+### Prerequisites
+- Node.js 22+
+- pnpm 10+
+- Docker & Docker Compose (optional for PostgreSQL + Redis)
+
 ```bash
-# 1. Start database and Redis services
+# 1. Start local PostgreSQL and Redis services
 docker compose up -d
 
-# 2. Install dependencies
+# 2. Install dependencies across monorepo
 pnpm install
 
-# 3. Generate Prisma client
-pnpm --filter @mocklab/api prisma:generate
-
-# 4. Run tests and typechecks
+# 3. Run automated tests and typechecks
 pnpm test
 pnpm typecheck
 pnpm build
 
-# 5. Start development servers
+# 4. Start development servers
 pnpm dev
-# Web running at http://localhost:3000
-# API running at http://localhost:3001
+# Web app running at http://localhost:3000
+# API engine running at http://localhost:3001
 ```
 
-## Phase Status
-- [x] **Phase 0**: Scaffold + Spine + Redis Spike (`feat/phase-0-scaffold-spine`)
-- [x] **Phase 1**: Auth, Workspaces, Roles, Public Pages (`feat/phase-1-auth-workspaces-public-pages`)
-- [x] **Phase 2**: Projects + OpenAPI Import (`feat/phase-2-projects-openapi-import`)
-- [x] **Phase 3**: Mock Engine Core (`feat/phase-3-mock-engine-core`)
-- [x] **Phase 4**: Playground (`feat/phase-4-playground-main-ui`)
-- [x] **Phase 5**: Rules Editor + Templating + Faults (`feat/phase-5-rules-editor-templating-faults`)
-- [x] **Phase 6**: Stateful Scenarios & Buckets (`feat/phase-6-stateful-scenarios-buckets`)
-- [x] **Phase 7**: Traffic Inspector (`feat/phase-7-traffic-inspector`)
-- [x] **Phase 8**: Contract Tests (`feat/phase-8-contract-tests`)
-- [x] **Phase 9**: Schedules + CI Integration (`feat/phase-9-schedules-ci`)
-- [x] **Phase 10**: API Keys, Rate Limits, Team, Settings, Billing (`feat/phase-10-keys-limits-team-billing`)
-- [x] **Phase 11**: Polish, Accessibility, Docs, Deploy, Demo (`feat/phase-11-polish-a11y-demo`)
+---
 
-## Complete 24-Screen Checklist (§2.1)
-| Screen | Name | Route | Status |
-|---|---|---|---|
-| Screen 1 | Landing Page | `/` | Complete |
-| Screen 2 | Pricing | `/pricing` | Complete |
-| Screen 3 | Documentation | `/docs` | Complete |
-| Screen 4 | Auth (Login, Signup, Forgot) | `/login`, `/signup`, `/forgot` | Complete |
-| Screen 5 | Dashboard | `/dashboard` | Complete |
-| Screen 6 | Projects List | `/projects` | Complete |
-| Screen 7 | Project Overview | `/projects/[id]` | Complete |
-| Screen 8 | Import OpenAPI Spec | `/projects/[id]/import` | Complete |
-| Screen 9 | Endpoints List | `/projects/[id]/endpoints` | Complete |
-| Screen 10 | Request Playground | `/projects/[id]/playground` | Complete |
-| Screen 11 | Rules Editor | `/projects/[id]/endpoints/[op]/rules` | Complete |
-| Screen 12 | Stateful Scenarios | `/projects/[id]/scenarios` | Complete |
-| Screen 13 | Traffic Inspector | `/projects/[id]/logs` | Complete |
-| Screen 14 | Contract Tests List | `/projects/[id]/contracts` | Complete |
-| Screen 15 | Contract Run Detail | `/projects/[id]/contracts/runs/[runId]` | Complete |
-| Screen 16 | Contract Schedules | `/projects/[id]/contracts/schedules` | Complete |
-| Screen 17 | CI Integration | `/projects/[id]/ci` | Complete |
-| Screen 18 | Team & Roles | `/workspace/team` | Complete |
-| Screen 19 | API Keys | `/workspace/keys` | Complete |
-| Screen 20 | Workspace Settings | `/workspace/settings` | Complete |
-| Screen 21 | Billing & Plans | `/workspace/billing` | Complete |
-| Screen 22 | Account Settings | `/account` | Complete |
-| Screen 23 | Status & Error States | `/_not-found`, `/status` | Complete |
-| Screen 24 | Design System Board | `/design-system` | Complete |
+## Using MockLab in 60 Seconds
+
+### 1. Call a Live Mock Endpoint
+Every project gets a dedicated mock URL prefix:
+```bash
+curl -i http://localhost:3001/m/petstore/pets/42
+```
+
+Response:
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-MockLab-Rule: Get pet by ID (default example)
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 99
+
+{
+  "id": 42,
+  "name": "Fluffy",
+  "tag": "dog"
+}
+```
+
+### 2. Trigger an Unmatched Route (Near-Miss)
+```bash
+curl -i http://localhost:3001/m/petstore/pets/unknown
+```
+
+Response:
+```json
+{
+  "error": "Not Found",
+  "message": "No matching mock rule found",
+  "nearMiss": {
+    "closestRule": "Get pet by ID",
+    "operationId": "GET /pets/{id}",
+    "missedField": "path",
+    "reason": "Path mismatch: expected numeric id, got 'unknown'"
+  }
+}
+```
+
+### 3. Verify Contracts in CI
+Add this step to your GitHub Actions workflow:
+```yaml
+- name: Verify API Contracts
+  run: |
+    curl -s -X POST "https://api.yourdomain.com/api/v1/projects/petstore/contract-runs" \
+      -H "Authorization: Bearer ${{ secrets.MOCKLAB_API_KEY }}" \
+      --fail-with-body
+```
+
+---
+
+## Documentation & References
+
+- [Architecture & Subsystem Design](docs/ARCHITECTURE.md)
+- [REST API Reference](docs/API_REFERENCE.md)
+- [Production Deployment Guide](docs/DEPLOYMENT_GUIDE.md)
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+---
+
+## License
+
+MIT © [MockLab](https://github.com/razikuljoni/MockLab)
