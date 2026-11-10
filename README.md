@@ -47,7 +47,7 @@ pnpm dev
 
 ## Phase Status
 - [x] **Phase 0**: Scaffold + Spine + Redis Spike
-- [ ] **Phase 1**: Auth, Workspaces, Roles, Public Pages
+- [x] **Phase 1**: Auth, Workspaces, Roles, Public Pages
 - [ ] **Phase 2**: Projects + OpenAPI Import
 - [ ] **Phase 3**: Mock Engine Core
 - [ ] **Phase 4**: Playground (Main UI)

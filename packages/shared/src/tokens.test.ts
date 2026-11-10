@@ -19,7 +19,9 @@ describe("Shared Tokens & Configuration", () => {
   it("contains plan limits for FREE, PRO, TEAM", () => {
     expect(PLAN_LIMITS.FREE.pricePerMonth).toBe(0);
     expect(PLAN_LIMITS.PRO.pricePerMonth).toBe(19);
-    expect(PLAN_LIMITS.TEAM.pricePerMonth).toBe(49);
+    expect(PLAN_LIMITS.TEAM.pricePerMonth).toBe(79);
     expect(PLAN_LIMITS.FREE.mockRequestsPerMonth).toBe(5000);
+    expect(PLAN_LIMITS.FREE.logRetentionDays).toBe(14);
+    expect(PLAN_LIMITS.FREE.maxLogRowsRetained).toBe(2500);
   });
 });
