@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { MockEngineService } from "../mock/mock-engine.service";
 import { MockStateService } from "./mock-state.service";
 import { ScenariosService } from "./scenarios.service";
+import { RequestLoggerService } from "../logs/request-logger.service";
 import { MockController } from "../mock/mock.controller";
 import { MockAuth } from "@prisma/client";
 
@@ -63,7 +64,8 @@ describe("Phase 6 Stateful Scenarios & Buckets Acceptance Suite", () => {
     await mockState.onModuleInit();
 
     scenariosService = new ScenariosService(dataStore, mockState);
-    mockController = new MockController(dataStore, mockEngine, mockState);
+    const requestLogger = new RequestLoggerService(dataStore);
+    mockController = new MockController(dataStore, mockEngine, mockState, requestLogger);
 
     const ws = await dataStore.createWorkspace({ name: "Scenarios WS", slug: "scenariosws" });
     const project = await dataStore.createProject({

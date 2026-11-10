@@ -10,6 +10,7 @@ import { DataStoreService } from "../prisma/data-store.service";
 import { MockEngineService, IncomingMockRequest } from "./mock-engine.service";
 import { TemplateEngineUtil } from "./template-engine.util";
 import { MockStateService } from "../scenarios/mock-state.service";
+import { RequestLoggerService } from "../logs/request-logger.service";
 import { ProjectStatus, MockAuth } from "@prisma/client";
 
 @Controller()
@@ -19,11 +20,13 @@ export class MockController {
   constructor(
     private readonly dataStore: DataStoreService,
     private readonly mockEngine: MockEngineService,
-    private readonly mockState: MockStateService
+    private readonly mockState: MockStateService,
+    private readonly requestLogger: RequestLoggerService
   ) {}
 
   @All(["m/:slug", "m/:slug/*"])
   async handleMockRequest(@Req() req: Request, @Res() res: Response) {
+    const startTime = Date.now();
     const rawSlug = req.params.slug;
     const slug = (Array.isArray(rawSlug) ? rawSlug[0] : rawSlug)?.toLowerCase();
     if (!slug) {
@@ -50,10 +53,21 @@ export class MockController {
 
     // 2. Paused Project Check (§9.4 & Acceptance Criteria)
     if (project.status === ProjectStatus.PAUSED) {
-      return res.status(503).json({
+      const pausedRes = {
         error: "Project Paused",
         message: "This mock server is currently paused in project settings.",
+      };
+      this.requestLogger.enqueueLog({
+        projectId: project.id,
+        method: req.method,
+        path: req.originalUrl,
+        status: 503,
+        latencyMs: Date.now() - startTime,
+        requestHeaders: req.headers,
+        requestBody: req.body,
+        responseBody: pausedRes,
       });
+      return res.status(503).json(pausedRes);
     }
 
     // 3. Mock Authentication Gate (§6.7 & Acceptance Criteria)
@@ -65,10 +79,21 @@ export class MockController {
           : null);
 
       if (!mockKey) {
-        return res.status(401).json({
+        const unauthRes = {
           error: "Unauthorized",
           message: "This mock server requires a project API key (X-MockLab-Key header or Bearer token)",
+        };
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: req.method,
+          path: req.originalUrl,
+          status: 401,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: unauthRes,
         });
+        return res.status(401).json(unauthRes);
       }
     }
 
@@ -136,15 +161,26 @@ export class MockController {
           targetState,
           `${incoming.method} ${mockPath}`
         );
-        // Also update the item status if present in bucket
         await this.mockState.updateItem(project.id, scenarioKey, resource, itemId, { status: targetState });
         res.setHeader("X-MockLab-Rule", `stateful-scenario:${subAction}`);
-        return res.status(200).json({
+        const responseData = {
           id: itemId,
           action: subAction,
           state: targetState,
           message: `Order transitioned to ${targetState}`,
+        };
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: 200,
+          matchedRuleId: `stateful-scenario:${subAction}`,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: responseData,
         });
+        return res.status(200).json(responseData);
       }
 
       // 5b. Collection POST: create item with server-generated UUID (never trust body id)
@@ -156,6 +192,17 @@ export class MockController {
           req.body && typeof req.body === "object" ? req.body : {}
         );
         res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:create`);
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: 201,
+          matchedRuleId: `stateful-bucket:${resource}:create`,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: item,
+        });
         return res.status(201).json(item);
       }
 
@@ -164,12 +211,35 @@ export class MockController {
         const item = await this.mockState.getItem(project.id, scenarioKey, resource, itemId);
         if (!item) {
           res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:not-found`);
-          return res.status(404).json({
+          const errRes = {
             error: "Not Found",
             message: `Item '${itemId}' not found in bucket '${resource}'`,
+          };
+          this.requestLogger.enqueueLog({
+            projectId: project.id,
+            method: incoming.method,
+            path: incoming.path,
+            status: 404,
+            matchedRuleId: null,
+            latencyMs: Date.now() - startTime,
+            requestHeaders: req.headers,
+            requestBody: req.body,
+            responseBody: errRes,
           });
+          return res.status(404).json(errRes);
         }
         res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:get`);
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: 200,
+          matchedRuleId: `stateful-bucket:${resource}:get`,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: item,
+        });
         return res.status(200).json(item);
       }
 
@@ -182,6 +252,17 @@ export class MockController {
           req.query.q as string
         );
         res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:list`);
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: 200,
+          matchedRuleId: `stateful-bucket:${resource}:list`,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: items,
+        });
         return res.status(200).json(items);
       }
 
@@ -196,12 +277,34 @@ export class MockController {
         );
         if (!updated) {
           res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:not-found`);
-          return res.status(404).json({
+          const errRes = {
             error: "Not Found",
             message: `Item '${itemId}' not found in bucket '${resource}'`,
+          };
+          this.requestLogger.enqueueLog({
+            projectId: project.id,
+            method: incoming.method,
+            path: incoming.path,
+            status: 404,
+            latencyMs: Date.now() - startTime,
+            requestHeaders: req.headers,
+            requestBody: req.body,
+            responseBody: errRes,
           });
+          return res.status(404).json(errRes);
         }
         res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:update`);
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: 200,
+          matchedRuleId: `stateful-bucket:${resource}:update`,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: updated,
+        });
         return res.status(200).json(updated);
       }
 
@@ -210,13 +313,36 @@ export class MockController {
         const deleted = await this.mockState.deleteItem(project.id, scenarioKey, resource, itemId);
         if (!deleted) {
           res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:not-found`);
-          return res.status(404).json({
+          const errRes = {
             error: "Not Found",
             message: `Item '${itemId}' not found in bucket '${resource}'`,
+          };
+          this.requestLogger.enqueueLog({
+            projectId: project.id,
+            method: incoming.method,
+            path: incoming.path,
+            status: 404,
+            latencyMs: Date.now() - startTime,
+            requestHeaders: req.headers,
+            requestBody: req.body,
+            responseBody: errRes,
           });
+          return res.status(404).json(errRes);
         }
         res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:delete`);
-        return res.status(200).json({ success: true, id: itemId, message: `Deleted from ${resource}` });
+        const delRes = { success: true, id: itemId, message: `Deleted from ${resource}` };
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: 200,
+          matchedRuleId: `stateful-bucket:${resource}:delete`,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: delRes,
+        });
+        return res.status(200).json(delRes);
       }
     }
 
@@ -234,13 +360,38 @@ export class MockController {
       // Handle Fault Injection (§9.3)
       if (rule.response?.fault === "empty-body") {
         res.setHeader("X-MockLab-Rule", rule.name);
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: rule.response.status || 200,
+          matchedRuleId: rule.id,
+          latencyMs: Date.now() - startTime,
+          injectedMs: latencyMs,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: "",
+        });
         return res.status(rule.response.status || 200).send("");
       }
 
       if (rule.response?.fault === "malformed-json") {
         res.setHeader("X-MockLab-Rule", rule.name);
         res.setHeader("Content-Type", "application/json");
-        return res.status(rule.response.status || 200).send('{"broken_json": true, incomplete');
+        const brokenJson = '{"broken_json": true, incomplete';
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: incoming.method,
+          path: incoming.path,
+          status: rule.response.status || 200,
+          matchedRuleId: rule.id,
+          latencyMs: Date.now() - startTime,
+          injectedMs: latencyMs,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: brokenJson,
+        });
+        return res.status(rule.response.status || 200).send(brokenJson);
       }
 
       res.setHeader("X-MockLab-Rule", rule.name);
@@ -260,15 +411,44 @@ export class MockController {
         params: result.params,
         headers: req.headers as Record<string, any>,
       });
+
+      this.requestLogger.enqueueLog({
+        projectId: project.id,
+        method: incoming.method,
+        path: incoming.path,
+        status: statusCode,
+        matchedRuleId: rule.id,
+        latencyMs: Date.now() - startTime,
+        injectedMs: latencyMs,
+        requestHeaders: req.headers,
+        requestBody: req.body,
+        responseBody: body,
+      });
+
       return res.status(statusCode).json(body);
     }
 
     // 7. Unmatched Request -> 404 with Near-Miss Report (§2.1 & §9.4)
     res.setHeader("X-MockLab-Rule", "UNMATCHED");
-    return res.status(404).json({
+    const unmatchedResponse = {
       error: "Unmatched Request",
       message: `No mock rule matched ${incoming.method} ${incoming.path}`,
       nearMiss: result.nearMiss,
+    };
+
+    this.requestLogger.enqueueLog({
+      projectId: project.id,
+      method: incoming.method,
+      path: incoming.path,
+      status: 404,
+      matchedRuleId: null,
+      nearMiss: result.nearMiss,
+      latencyMs: Date.now() - startTime,
+      requestHeaders: req.headers,
+      requestBody: req.body,
+      responseBody: unmatchedResponse,
     });
+
+    return res.status(404).json(unmatchedResponse);
   }
 }

@@ -69,6 +69,25 @@ export interface MockRuleRecord {
   updatedAt: Date;
 }
 
+export interface RequestLogRecord {
+  id: string;
+  projectId: string;
+  method: string;
+  path: string;
+  status: number;
+  matchedRuleId: string | null;
+  nearMiss: any;
+  latencyMs: number;
+  injectedMs: number;
+  requestSize: number;
+  responseSize: number;
+  requestHeaders?: Record<string, string>;
+  requestBody: any;
+  responseHeaders?: Record<string, string>;
+  responseBody: any;
+  createdAt: Date;
+}
+
 @Injectable()
 export class DataStoreService {
   private readonly logger = new Logger(DataStoreService.name);
@@ -81,6 +100,7 @@ export class DataStoreService {
   private projects = new Map<string, ProjectRecord>();
   private specVersions = new Map<string, SpecVersionRecord>();
   private rules = new Map<string, MockRuleRecord>();
+  private requestLogs = new Map<string, RequestLogRecord>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -449,6 +469,180 @@ export class DataStoreService {
     return this.rules.delete(id);
   }
 
+  // ── RequestLog Operations ──
+  async createRequestLog(data: Omit<RequestLogRecord, "id" | "createdAt">): Promise<RequestLogRecord> {
+    const id = `log_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: RequestLogRecord = {
+      ...data,
+      id,
+      createdAt: new Date(),
+    };
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.requestLog.create({
+          data: {
+            id: record.id,
+            projectId: record.projectId,
+            method: record.method,
+            path: record.path,
+            status: record.status,
+            matchedRuleId: record.matchedRuleId,
+            nearMiss: record.nearMiss,
+            latencyMs: record.latencyMs,
+            injectedMs: record.injectedMs,
+            requestSize: record.requestSize,
+            responseSize: record.responseSize,
+            requestBody: record.requestBody,
+            responseBody: record.responseBody,
+            createdAt: record.createdAt,
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma createRequestLog fallback: ${err.message}`);
+      }
+    }
+
+    this.requestLogs.set(id, record);
+    return record;
+  }
+
+  async createRequestLogsBatch(entries: Omit<RequestLogRecord, "id" | "createdAt">[]): Promise<number> {
+    if (!entries.length) return 0;
+    const records: RequestLogRecord[] = entries.map((e, idx) => ({
+      ...e,
+      id: `log_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: new Date(),
+    }));
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.requestLog.createMany({
+          data: records.map((r) => ({
+            id: r.id,
+            projectId: r.projectId,
+            method: r.method,
+            path: r.path,
+            status: r.status,
+            matchedRuleId: r.matchedRuleId,
+            nearMiss: r.nearMiss,
+            latencyMs: r.latencyMs,
+            injectedMs: r.injectedMs,
+            requestSize: r.requestSize,
+            responseSize: r.responseSize,
+            requestBody: r.requestBody,
+            responseBody: r.responseBody,
+            createdAt: r.createdAt,
+          })),
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma createRequestLogsBatch fallback: ${err.message}`);
+      }
+    }
+
+    for (const r of records) {
+      this.requestLogs.set(r.id, r);
+    }
+    return records.length;
+  }
+
+  async listRequestLogs(
+    projectId: string,
+    filters?: {
+      method?: string;
+      statusClass?: string;
+      onlyUnmatched?: boolean;
+      path?: string;
+      ruleId?: string;
+    },
+    pagination?: { page?: number; limit?: number }
+  ): Promise<{ total: number; page: number; limit: number; logs: RequestLogRecord[] }> {
+    const page = pagination?.page || 1;
+    const limit = pagination?.limit || 50;
+
+    let all = Array.from(this.requestLogs.values()).filter((l) => l.projectId === projectId);
+
+    if (filters?.method) {
+      all = all.filter((l) => l.method.toUpperCase() === filters.method!.toUpperCase());
+    }
+
+    if (filters?.statusClass) {
+      if (filters.statusClass === "2xx") all = all.filter((l) => l.status >= 200 && l.status < 300);
+      else if (filters.statusClass === "4xx") all = all.filter((l) => l.status >= 400 && l.status < 500);
+      else if (filters.statusClass === "5xx") all = all.filter((l) => l.status >= 500 && l.status < 600);
+    }
+
+    if (filters?.onlyUnmatched) {
+      all = all.filter((l) => l.status === 404 || !l.matchedRuleId || l.matchedRuleId === "UNMATCHED");
+    }
+
+    if (filters?.path) {
+      const q = filters.path.toLowerCase();
+      all = all.filter((l) => l.path.toLowerCase().includes(q));
+    }
+
+    if (filters?.ruleId) {
+      all = all.filter((l) => l.matchedRuleId === filters.ruleId);
+    }
+
+    all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    const total = all.length;
+    const startIndex = (page - 1) * limit;
+    const logs = all.slice(startIndex, startIndex + limit);
+
+    return { total, page, limit, logs };
+  }
+
+  async findRequestLogById(id: string): Promise<RequestLogRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const row = await this.prisma.requestLog.findUnique({ where: { id } });
+        if (row) return row as any;
+      } catch {
+        // fallback
+      }
+    }
+    return this.requestLogs.get(id) || null;
+  }
+
+  async purgeRequestLogs(projectId: string, retentionDays = 14, maxRows = 2500): Promise<number> {
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+    let purged = 0;
+
+    for (const [id, log] of this.requestLogs.entries()) {
+      if (log.projectId === projectId && log.createdAt < cutoff) {
+        this.requestLogs.delete(id);
+        purged++;
+      }
+    }
+
+    // Also enforce maxRows cap
+    const projectLogs = Array.from(this.requestLogs.values())
+      .filter((l) => l.projectId === projectId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    if (projectLogs.length > maxRows) {
+      const toRemove = projectLogs.slice(maxRows);
+      for (const rem of toRemove) {
+        this.requestLogs.delete(rem.id);
+        purged++;
+      }
+    }
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.requestLog.deleteMany({
+          where: { projectId, createdAt: { lt: cutoff } },
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    return purged;
+  }
+
   /**
    * Helper for tests: resets in-memory data
    */
@@ -459,5 +653,6 @@ export class DataStoreService {
     this.projects.clear();
     this.specVersions.clear();
     this.rules.clear();
+    this.requestLogs.clear();
   }
 }
