@@ -2,6 +2,23 @@
 
 All notable changes to MockLab will be documented in this file.
 
+## [Phase 4] - Request Playground (Main UI) (2026-11-11)
+
+### Added
+- `apps/web`: Server-side proxy API route (`/api/proxy`) preventing browser CORS restrictions when sending test requests to mock URLs and real provider URLs.
+- `apps/web`: Screen 10 — Request Playground (`/projects/[id]/playground`) matching Stitch specifications:
+  - Collapsible left sidebar with Endpoints resource tree and searchable History log.
+  - Method chip selector with standard HTTP method colors and URL input bar with highlighted `{{baseUrl}}` variable.
+  - Request tabs: `Params` (key/value table), `Headers`, `Auth` (None/Bearer/X-MockLab-Key), `Body` (formatted JSON), and `Rules` (live prediction).
+  - Loud status bar: status code badge (`200 OK`, `404 Unmatched`), roundtrip latency in ms, payload size, and matched rule name.
+  - Response tabs: `Body` (pretty JSON), `Headers`, `Timeline` (TTFB and latency breakdown), and `Validation` (OpenAPI schema conformance warnings).
+  - 1-Click Code Export: `Copy as cURL`, `Copy as fetch`, and `Copy as Python requests`.
+  - Keyboard shortcut: `Cmd+Enter` / `Ctrl+Enter` sending from anywhere.
+
+### Verified
+- End-to-end proxy roundtrip verified with TTFB and duration metrics.
+- Monorepo typecheck, lint, and Next.js / NestJS builds pass with zero warnings or errors.
+
 ## [Phase 3] - Mock Engine Core (2026-11-11)
 
 ### Added

@@ -50,7 +50,8 @@ pnpm dev
 - [x] **Phase 1**: Auth, Workspaces, Roles, Public Pages
 - [x] **Phase 2**: Projects + OpenAPI Import
 - [x] **Phase 3**: Mock Engine Core
-- [ ] **Phase 4**: Playground (Main UI)
+- [x] **Phase 4**: Playground (Main UI)
+- [ ] **Phase 5**: Rules Editor + Templating + Faults
 - [ ] **Phase 3**: Mock Engine Core
 - [ ] **Phase 4**: Playground (Main UI)
 - [ ] **Phase 5**: Rules Editor + Templating + Faults
