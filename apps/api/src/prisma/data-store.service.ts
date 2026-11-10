@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "./prisma.service";
-import { Role, Plan, MockAuth, ProjectStatus, Protocol } from "@prisma/client";
+import { Role, Plan, MockAuth, ProjectStatus, Protocol, RunStatus, Verdict } from "@prisma/client";
 
 export interface UserRecord {
   id: string;
@@ -88,6 +88,41 @@ export interface RequestLogRecord {
   createdAt: Date;
 }
 
+export interface ExpectationRecord {
+  id: string;
+  projectId: string;
+  operationId: string;
+  name: string;
+  providerState: string | null;
+  request: any;
+  expectedStatus: number;
+  expectedSchema: any;
+  matchers: any;
+  generated: boolean;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContractRunRecord {
+  id: string;
+  projectId: string;
+  specHash: string;
+  providerUrl: string;
+  status: RunStatus;
+  triggeredBy: string;
+  durationMs: number;
+  createdAt: Date;
+  results: Array<{
+    id: string;
+    expectationId: string;
+    mockStatus: number | null;
+    realStatus: number | null;
+    verdict: Verdict;
+    diff: any;
+  }>;
+}
+
 @Injectable()
 export class DataStoreService {
   private readonly logger = new Logger(DataStoreService.name);
@@ -101,6 +136,8 @@ export class DataStoreService {
   private specVersions = new Map<string, SpecVersionRecord>();
   private rules = new Map<string, MockRuleRecord>();
   private requestLogs = new Map<string, RequestLogRecord>();
+  private expectations = new Map<string, ExpectationRecord>();
+  private contractRuns = new Map<string, ContractRunRecord>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -643,6 +680,174 @@ export class DataStoreService {
     return purged;
   }
 
+  // ── Expectation Operations ──
+  async createExpectation(data: Omit<ExpectationRecord, "id" | "createdAt" | "updatedAt">): Promise<ExpectationRecord> {
+    const id = `exp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: ExpectationRecord = {
+      ...data,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.expectation.create({
+          data: {
+            id: record.id,
+            projectId: record.projectId,
+            operationId: record.operationId,
+            name: record.name,
+            providerState: record.providerState,
+            request: record.request,
+            expectedStatus: record.expectedStatus,
+            expectedSchema: record.expectedSchema,
+            matchers: record.matchers,
+            generated: record.generated,
+            enabled: record.enabled,
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma createExpectation fallback: ${err.message}`);
+      }
+    }
+
+    this.expectations.set(id, record);
+    return record;
+  }
+
+  async listExpectations(projectId: string): Promise<ExpectationRecord[]> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const rows = await this.prisma.expectation.findMany({
+          where: { projectId },
+          orderBy: { createdAt: "asc" },
+        });
+        if (rows.length > 0) return rows as any;
+      } catch {
+        // fallback
+      }
+    }
+    return Array.from(this.expectations.values()).filter((e) => e.projectId === projectId);
+  }
+
+  async findExpectationById(id: string): Promise<ExpectationRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const row = await this.prisma.expectation.findUnique({ where: { id } });
+        if (row) return row as any;
+      } catch {
+        // fallback
+      }
+    }
+    return this.expectations.get(id) || null;
+  }
+
+  async updateExpectation(id: string, data: Partial<ExpectationRecord>): Promise<ExpectationRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const updated = await this.prisma.expectation.update({
+          where: { id },
+          data: { ...data, updatedAt: new Date() },
+        });
+        if (updated) return updated as any;
+      } catch {
+        // fallback
+      }
+    }
+    const exp = this.expectations.get(id);
+    if (!exp) return null;
+    Object.assign(exp, data, { updatedAt: new Date() });
+    return exp;
+  }
+
+  async deleteExpectation(id: string): Promise<boolean> {
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.expectation.delete({ where: { id } });
+      } catch {
+        // fallback
+      }
+    }
+    return this.expectations.delete(id);
+  }
+
+  // ── ContractRun Operations ──
+  async createContractRun(
+    data: Omit<ContractRunRecord, "id" | "createdAt">
+  ): Promise<ContractRunRecord> {
+    const id = `run_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: ContractRunRecord = {
+      ...data,
+      id,
+      createdAt: new Date(),
+    };
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.contractRun.create({
+          data: {
+            id: record.id,
+            projectId: record.projectId,
+            specHash: record.specHash,
+            providerUrl: record.providerUrl,
+            status: record.status,
+            triggeredBy: record.triggeredBy,
+            durationMs: record.durationMs,
+            createdAt: record.createdAt,
+            results: {
+              create: record.results.map((r) => ({
+                expectationId: r.expectationId,
+                mockStatus: r.mockStatus,
+                realStatus: r.realStatus,
+                verdict: r.verdict,
+                diff: r.diff,
+              })),
+            },
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma createContractRun fallback: ${err.message}`);
+      }
+    }
+
+    this.contractRuns.set(id, record);
+    return record;
+  }
+
+  async listContractRuns(projectId: string): Promise<ContractRunRecord[]> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const rows = await this.prisma.contractRun.findMany({
+          where: { projectId },
+          include: { results: true },
+          orderBy: { createdAt: "desc" },
+        });
+        if (rows.length > 0) return rows as any;
+      } catch {
+        // fallback
+      }
+    }
+    return Array.from(this.contractRuns.values())
+      .filter((r) => r.projectId === projectId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async findContractRunById(runId: string): Promise<ContractRunRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const row = await this.prisma.contractRun.findUnique({
+          where: { id: runId },
+          include: { results: true },
+        });
+        if (row) return row as any;
+      } catch {
+        // fallback
+      }
+    }
+    return this.contractRuns.get(runId) || null;
+  }
+
   /**
    * Helper for tests: resets in-memory data
    */
@@ -654,5 +859,7 @@ export class DataStoreService {
     this.specVersions.clear();
     this.rules.clear();
     this.requestLogs.clear();
+    this.expectations.clear();
+    this.contractRuns.clear();
   }
 }

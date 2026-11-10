@@ -10,6 +10,7 @@ import { MockModule } from "./mock/mock.module";
 import { RulesModule } from "./rules/rules.module";
 import { ScenariosModule } from "./scenarios/scenarios.module";
 import { LogsModule } from "./logs/logs.module";
+import { ContractsModule } from "./contracts/contracts.module";
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { LogsModule } from "./logs/logs.module";
     RulesModule,
     ScenariosModule,
     LogsModule,
+    ContractsModule,
   ],
 })
 export class AppModule {}
