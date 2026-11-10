@@ -195,6 +195,38 @@ jobs:
           <div><span className="text-[var(--signal)]">X-RateLimit-Reset:</span> 1731283200</div>
         </div>
       </section>
+
+      {/* Section 6: Reference & Design System */}
+      <section id="reference" className="space-y-4 pt-4 border-t border-[var(--border)]">
+        <h2 className="text-xl font-bold text-[var(--ink)] flex items-center gap-2">
+          <BookOpen className="w-5 h-5 text-[var(--signal)]" />
+          <span>6. Platform Reference &amp; Design System</span>
+        </h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <a
+            href="/design-system"
+            className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] transition-colors group block"
+          >
+            <div className="font-semibold text-[var(--ink)] group-hover:text-[var(--signal)] transition-colors">
+              Design System Board (Screen 24) →
+            </div>
+            <p className="text-[var(--ink-3)] mt-1">
+              Explore the design tokens, colors, typography scales, components, and contrast compliance.
+            </p>
+          </a>
+          <a
+            href="/status"
+            className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] transition-colors group block"
+          >
+            <div className="font-semibold text-[var(--ink)] group-hover:text-[var(--signal)] transition-colors">
+              Status &amp; Error Catalog (Screen 23) →
+            </div>
+            <p className="text-[var(--ink-3)] mt-1">
+              Inspect mock engine error states: Near-Miss 404, Mock Paused 503, Rate Limit 429, and spec errors.
+            </p>
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

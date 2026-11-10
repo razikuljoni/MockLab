@@ -46,18 +46,43 @@ pnpm dev
 ```
 
 ## Phase Status
-- [x] **Phase 0**: Scaffold + Spine + Redis Spike
-- [x] **Phase 1**: Auth, Workspaces, Roles, Public Pages
-- [x] **Phase 2**: Projects + OpenAPI Import
-- [x] **Phase 3**: Mock Engine Core
-- [x] **Phase 4**: Playground (Main UI)
-- [ ] **Phase 5**: Rules Editor + Templating + Faults
-- [ ] **Phase 3**: Mock Engine Core
-- [ ] **Phase 4**: Playground (Main UI)
-- [ ] **Phase 5**: Rules Editor + Templating + Faults
-- [ ] **Phase 6**: Stateful Scenarios & Buckets
-- [ ] **Phase 7**: Traffic Inspector
-- [ ] **Phase 8**: Contract Tests (Expectations, Runner, Diff)
-- [ ] **Phase 9**: Schedules + CI Integration
-- [ ] **Phase 10**: API Keys, Rate Limits, Team, Settings, Billing
-- [ ] **Phase 11**: Polish, Accessibility, Docs, Deploy, Demo
+- [x] **Phase 0**: Scaffold + Spine + Redis Spike (`feat/phase-0-scaffold-spine`)
+- [x] **Phase 1**: Auth, Workspaces, Roles, Public Pages (`feat/phase-1-auth-workspaces-public-pages`)
+- [x] **Phase 2**: Projects + OpenAPI Import (`feat/phase-2-projects-openapi-import`)
+- [x] **Phase 3**: Mock Engine Core (`feat/phase-3-mock-engine-core`)
+- [x] **Phase 4**: Playground (`feat/phase-4-playground-main-ui`)
+- [x] **Phase 5**: Rules Editor + Templating + Faults (`feat/phase-5-rules-editor-templating-faults`)
+- [x] **Phase 6**: Stateful Scenarios & Buckets (`feat/phase-6-stateful-scenarios-buckets`)
+- [x] **Phase 7**: Traffic Inspector (`feat/phase-7-traffic-inspector`)
+- [x] **Phase 8**: Contract Tests (`feat/phase-8-contract-tests`)
+- [x] **Phase 9**: Schedules + CI Integration (`feat/phase-9-schedules-ci`)
+- [x] **Phase 10**: API Keys, Rate Limits, Team, Settings, Billing (`feat/phase-10-keys-limits-team-billing`)
+- [x] **Phase 11**: Polish, Accessibility, Docs, Deploy, Demo (`feat/phase-11-polish-a11y-demo`)
+
+## Complete 24-Screen Checklist (§2.1)
+| Screen | Name | Route | Status |
+|---|---|---|---|
+| Screen 1 | Landing Page | `/` | Complete |
+| Screen 2 | Pricing | `/pricing` | Complete |
+| Screen 3 | Documentation | `/docs` | Complete |
+| Screen 4 | Auth (Login, Signup, Forgot) | `/login`, `/signup`, `/forgot` | Complete |
+| Screen 5 | Dashboard | `/dashboard` | Complete |
+| Screen 6 | Projects List | `/projects` | Complete |
+| Screen 7 | Project Overview | `/projects/[id]` | Complete |
+| Screen 8 | Import OpenAPI Spec | `/projects/[id]/import` | Complete |
+| Screen 9 | Endpoints List | `/projects/[id]/endpoints` | Complete |
+| Screen 10 | Request Playground | `/projects/[id]/playground` | Complete |
+| Screen 11 | Rules Editor | `/projects/[id]/endpoints/[op]/rules` | Complete |
+| Screen 12 | Stateful Scenarios | `/projects/[id]/scenarios` | Complete |
+| Screen 13 | Traffic Inspector | `/projects/[id]/logs` | Complete |
+| Screen 14 | Contract Tests List | `/projects/[id]/contracts` | Complete |
+| Screen 15 | Contract Run Detail | `/projects/[id]/contracts/runs/[runId]` | Complete |
+| Screen 16 | Contract Schedules | `/projects/[id]/contracts/schedules` | Complete |
+| Screen 17 | CI Integration | `/projects/[id]/ci` | Complete |
+| Screen 18 | Team & Roles | `/workspace/team` | Complete |
+| Screen 19 | API Keys | `/workspace/keys` | Complete |
+| Screen 20 | Workspace Settings | `/workspace/settings` | Complete |
+| Screen 21 | Billing & Plans | `/workspace/billing` | Complete |
+| Screen 22 | Account Settings | `/account` | Complete |
+| Screen 23 | Status & Error States | `/_not-found`, `/status` | Complete |
+| Screen 24 | Design System Board | `/design-system` | Complete |

@@ -2,6 +2,94 @@
 
 All notable changes to MockLab will be documented in this file.
 
+## [Phase 11] - Polish, Accessibility, Status Catalog & Design System (2026-11-11)
+
+### Added
+- `apps/web`: Screen 23 — Status & Error States Catalog (`/status` and `apps/web/app/not-found.tsx`):
+  - HTTP 404 Near-Miss report with search input, route candidate suggestions, and navigation cards.
+  - HTTP 503 Mock Paused explanatory screen with formatted JSON payload and resume link.
+  - HTTP 429 Rate Limit Exceeded notice with RFC Retry-After and reset countdown indicators.
+  - OpenAPI Spec Validation error inspector with highlighted character/line pointers and JSONPath.
+  - Maintenance and degradation notice banner with operational subsystem health matrix.
+- `apps/web`: Screen 24 — Design System Board (`/design-system`):
+  - Token reference strictly matching §3: core color swatches (`--surface-0..3`, `--border`, `--ink`, `--signal`, `--success`, `--error`, `--warning`, `--info`) with 1-click CSS variable copy.
+  - Typography scale specifications across Display, Headings, Body, and Code font hierarchies.
+  - Interactive component primitives: Buttons, HTTP Method Chips, Verdict Badges, and Form Controls.
+  - WCAG 2.1 AA contrast matrix proving all token foreground/background pairs pass AAA/AA standards.
+- Documentation update in `apps/web/app/(marketing)/docs/page.tsx` linking to Screen 23 and 24.
+
+### Verified
+- All 24 screens in §2.1 render cleanly across static and dynamic Next.js routes.
+- Full monorepo verification: `pnpm test` (51/51 tests pass) and Next.js 19/19 routes build without warnings.
+
+## [Phase 10] - API Keys, Rate Limits, Teams, Settings & Billing (2026-11-11)
+
+### Added
+- `apps/api`: `ApiKeysService` and `ApiKeysController` with Stripe-style token generation (`mk_live_`, `mk_test_`, SHA-256 hash storage, last4 display, and show-once raw token delivery).
+- `apps/api`: 60-second sliding-window rate limiter per API key, returning `429 Too Many Requests` with standard `Retry-After` header when exceeded.
+- `apps/api`: Workspace management endpoints: member invitations, role updates, settings updates (`defaultEnv`, `mockAuthDefault`, `logRetentionDays`), `pause-all` mocks trigger, and Owner-only workspace deletion.
+- `apps/api`: Billing endpoints enforcing plan quotas for Free ($0), Pro ($19), and Team ($79) tiers with RBAC protection (Editor receives 403 Forbidden).
+- `apps/web`: Screen 18 — Team & Roles (`/workspace/team`) with member table, role change dropdown, member removal, and email invite modal.
+- `apps/web`: Screen 19 — API Keys (`/workspace/keys`) with key management table, show-once creation modal, and instant revocation.
+- `apps/web`: Screen 20 — Settings (`/workspace/settings`) with workspace properties, mock engine auth defaults, retention sliders, and danger zone.
+- `apps/web`: Screen 21 — Billing (`/workspace/billing`) with current consumption meters, plan upgrade cards, and invoice history table.
+
+### Verified
+- Automated test suite `src/keys/keys-flow.spec.ts` verifies: revoked key rejected with 401, rate-limited key gets 429 with `Retry-After`, Editor role cannot access billing or delete workspace (403), Owner can pause all mocks and update billing.
+
+## [Phase 9] - Schedules & CI Integration (2026-11-11)
+
+### Added
+- `apps/api`: `CiSchedulerService` executing periodic automated contract runs against external APIs on configured cadences (`@hourly`, `@daily`, `@weekly`).
+- `apps/api`: External CI trigger endpoint (`POST /api/v1/projects/:id/contract-runs`) returning non-zero exit code (`409 Conflict`) on `FAIL_BREAKING` to fail CI pipeline gates.
+- `apps/api`: Public SVG status badge endpoint (`GET /api/v1/projects/:id/badge`) generating shields-style vector graphics (`contracts | passing`, `contracts | breaking`, `contracts | none`).
+- `apps/web`: Screen 16 — Schedules (`/projects/[id]/contracts/schedules`) with cadence selector, active toggles, and last run status.
+- `apps/web`: Screen 17 — CI Integration (`/projects/[id]/ci`) with copyable GitHub Actions YAML, GitLab CI template, cURL commands, and README Markdown badge generator.
+
+### Verified
+- Automated test suite `src/ci/ci-flow.spec.ts` verifies 100% of Phase 9 criteria: external CI trigger fails on breaking change, passes on compliant change, SVG badge renders correct color/text, and due schedules execute accurately.
+
+## [Phase 8] - Contract Tests, Expectations & Diffs (2026-11-11)
+
+### Added
+- `apps/api`: `ContractDiffUtil` computing deep recursive structural diffs between mock expectations and real provider responses, classifying findings into strict Verdict taxonomy (`PASS`, `BREAKING`, `NON_BREAKING`, `ERROR`).
+- `apps/api`: `ContractRunnerService` executing real provider verification runs with AES-256-GCM decrypted credentials, capturing status, latency, request/response headers, and payloads.
+- `apps/web`: Screen 14 — Contracts List (`/projects/[id]/contracts`) with expectation table, verdict badges, and "Run All" trigger.
+- `apps/web`: Screen 15 — Contract Run Detail (`/projects/[id]/contracts/runs/[runId]`) with summary chips, JSONPath diff list, side-by-side synchronized scrolling, character-level highlights, and "Collapse Unchanged" toggle.
+
+### Verified
+- Automated test suite `src/contracts/contracts-flow.spec.ts` verifies contract runner execution, breaking diff classification, and non-breaking addition classification.
+
+## [Phase 7] - Traffic Inspector (2026-11-11)
+
+### Added
+- `apps/api`: `RequestLoggerService` buffering high-throughput mock requests in-memory and batching persistence every 500 records or 5 seconds.
+- `apps/api`: Automated redaction of sensitive auth headers (`Authorization`, `Cookie`, `X-MockLab-Key`) and 100 KB payload size capping with truncation warnings.
+- `apps/web`: Screen 13 — Traffic Inspector (`/projects/[id]/logs`) with dense 32px table, "Only Unmatched" filter toolbar, and row drawer with Near-Miss diagnosis, "Replay in playground", and "Create rule from request" 1-click generator.
+
+### Verified
+- Automated test suite `src/logs/logs-flow.spec.ts` verifies 1,000-request non-blocking burst, sensitive header redaction, 100 KB cap, and retention cleanup.
+
+## [Phase 6] - Stateful Scenarios & Buckets (2026-11-11)
+
+### Added
+- `apps/api`: `MockStateService` managing in-memory and Redis state stores with atomic CRUD operations for bucket resources (`mock:{projectId}:{scenarioKey}:bucket:{resource}`).
+- `apps/api`: Client-supplied `id: "new"` substitution with cryptographically random UUIDs.
+- `apps/web`: Screen 12 — Scenarios (`/projects/[id]/scenarios`) featuring an interactive vertical stepper for state machines (e.g. Order Lifecycle), active bucket data table, JSON inspect modal, and Reset State confirmation.
+
+### Verified
+- Automated test suite `src/scenarios/scenarios-flow.spec.ts` verifies bucket CRUD, UUID generation, scenario key isolation, and state reset.
+
+## [Phase 5] - Rules Editor, Templating & Faults (2026-11-11)
+
+### Added
+- `apps/api`: `TemplateEngineUtil` supporting Handlebars syntax (`{{body.name}}`, `{{query.id}}`, `{{headers.auth}}`, `{{now}}`, `{{uuid}}`, `{{randomInt 1 100}}`).
+- `apps/api`: Injected delays (0 to 5,000 ms) and fault injection simulation (`malformed-json`, `empty-body`, `connection-reset`).
+- `apps/web`: Screen 11 — Rules Editor (`/projects/[id]/endpoints/[op]/rules`) with draggable priority reordering, matcher configuration tabs, response headers editor, fault injection selector, and live Handlebars syntax preview.
+
+### Verified
+- Automated test suite `src/rules/rules-flow.spec.ts` verifies template variable interpolation, fault injection, and priority sorting.
+
 ## [Phase 4] - Request Playground (Main UI) (2026-11-11)
 
 ### Added

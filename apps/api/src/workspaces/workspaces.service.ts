@@ -216,10 +216,10 @@ export class WorkspacesService {
     let contractRuns = 0;
 
     for (const proj of projects) {
-      const logs = await this.dataStore.listRequestLogs(proj.id, { limit: 1000 });
+      const logs = await this.dataStore.listRequestLogs(proj.id, {}, { limit: 1000 });
       mockRequests += logs.total;
-      const runs = await this.dataStore.listContractRuns(proj.id, { limit: 1000 });
-      contractRuns += runs.total;
+      const runs = await this.dataStore.listContractRuns(proj.id);
+      contractRuns += runs.length;
     }
 
     const planLimits = PLAN_LIMITS[ws.plan] || PLAN_LIMITS[Plan.FREE];

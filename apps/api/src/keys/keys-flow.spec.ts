@@ -9,6 +9,7 @@ import { MockEngineService } from "../mock/mock-engine.service";
 import { MockStateService } from "../scenarios/mock-state.service";
 import { RequestLoggerService } from "../logs/request-logger.service";
 import { Role, Plan, MockAuth, ProjectStatus, Protocol } from "@prisma/client";
+import { ProjectRecord } from "../prisma/data-store.service";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 
 describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance Suite", () => {
@@ -25,10 +26,10 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
   let ownerUser: { id: string; email: string };
   let editorUser: { id: string; email: string };
   let workspace: { id: string; name: string; slug: string };
-  let project: { id: string; name: string; slug: string };
+  let project: ProjectRecord;
 
   beforeEach(async () => {
-    dataStore = new DataStoreService();
+    dataStore = new DataStoreService({} as any);
     dataStore.clear();
 
     apiKeysService = new ApiKeysService(dataStore);
@@ -37,7 +38,7 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
     workspacesController = new WorkspacesController(workspacesService);
 
     mockEngine = new MockEngineService();
-    mockState = new MockStateService(dataStore);
+    mockState = new MockStateService();
     requestLogger = new RequestLoggerService(dataStore);
     mockController = new MockController(
       dataStore,
@@ -75,11 +76,8 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
       name: "Payment API",
       slug: "payments-mock",
       environment: "development",
-      status: ProjectStatus.LIVE,
       mockAuth: MockAuth.PRIVATE,
       protocol: Protocol.REST,
-      realProviderUrl: null,
-      realProviderAuth: null,
     });
 
     // Create a mock rule for GET /charges
@@ -252,11 +250,8 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
       name: "Orders API",
       slug: "orders-mock",
       environment: "staging",
-      status: ProjectStatus.LIVE,
       mockAuth: MockAuth.PUBLIC,
       protocol: Protocol.REST,
-      realProviderUrl: null,
-      realProviderAuth: null,
     });
 
     expect(project.status).toBe(ProjectStatus.LIVE);
