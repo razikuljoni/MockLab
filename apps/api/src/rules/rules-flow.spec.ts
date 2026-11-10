@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { MockEngineService } from "../mock/mock-engine.service";
+import { MockStateService } from "../scenarios/mock-state.service";
 import { MockController } from "../mock/mock.controller";
 import { RulesService } from "./rules.service";
 import { MockAuth } from "@prisma/client";
@@ -19,7 +20,8 @@ describe("Phase 5 Rules Editor, Templating & Faults Acceptance Suite", () => {
     dataStore.clear();
 
     mockEngine = new MockEngineService();
-    mockController = new MockController(dataStore, mockEngine);
+    const mockState = new MockStateService();
+    mockController = new MockController(dataStore, mockEngine, mockState);
     rulesService = new RulesService(dataStore, mockEngine);
 
     const ws = await dataStore.createWorkspace({ name: "Rules WS", slug: "rulesws" });

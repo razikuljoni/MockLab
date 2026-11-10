@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { MockEngineService } from "./mock-engine.service";
+import { MockStateService } from "../scenarios/mock-state.service";
 import { MockController } from "./mock.controller";
 import { ProjectStatus, MockAuth, Role } from "@prisma/client";
 
@@ -17,7 +18,8 @@ describe("Phase 3 Mock Engine Core Acceptance Suite", () => {
     dataStore.clear();
 
     mockEngine = new MockEngineService();
-    mockController = new MockController(dataStore, mockEngine);
+    const mockState = new MockStateService();
+    mockController = new MockController(dataStore, mockEngine, mockState);
 
     const ws = await dataStore.createWorkspace({ name: "Demo WS", slug: "demows" });
     const project = await dataStore.createProject({

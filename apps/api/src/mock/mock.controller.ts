@@ -9,6 +9,7 @@ import { Request, Response } from "express";
 import { DataStoreService } from "../prisma/data-store.service";
 import { MockEngineService, IncomingMockRequest } from "./mock-engine.service";
 import { TemplateEngineUtil } from "./template-engine.util";
+import { MockStateService } from "../scenarios/mock-state.service";
 import { ProjectStatus, MockAuth } from "@prisma/client";
 
 @Controller()
@@ -17,7 +18,8 @@ export class MockController {
 
   constructor(
     private readonly dataStore: DataStoreService,
-    private readonly mockEngine: MockEngineService
+    private readonly mockEngine: MockEngineService,
+    private readonly mockState: MockStateService
   ) {}
 
   @All(["m/:slug", "m/:slug/*"])
@@ -30,7 +32,6 @@ export class MockController {
 
     // 1. Locate project by slug across workspaces
     let project = null;
-    // Search in DataStore
     if (this.dataStore.isConnectedToPrisma) {
       project = await (this.dataStore as any).prisma.project.findFirst({
         where: { slug },
@@ -72,29 +73,154 @@ export class MockController {
     }
 
     // 4. Calculate relative request path within the mock project
-    // e.g. "/m/petstore/pets/42" -> "/pets/42", "/m/petstore" -> "/"
     const fullPath = req.originalUrl.split("?")[0];
     const prefix = `/m/${slug}`;
     let mockPath = fullPath.startsWith(prefix) ? fullPath.substring(prefix.length) : fullPath;
     if (!mockPath.startsWith("/")) mockPath = `/${mockPath}`;
 
     const incoming: IncomingMockRequest = {
-      method: req.method,
+      method: req.method.toUpperCase(),
       path: mockPath,
       query: req.query as Record<string, string>,
       headers: req.headers as Record<string, string>,
       body: req.body,
     };
 
-    // 5. Evaluate Rules Engine
-    const rules = await this.dataStore.listMockRules(project.id);
-    const result = this.mockEngine.evaluate(rules, incoming);
+    // Scenario key isolation (§6.5 & §10)
+    const rawScenario = (req.headers["x-mocklab-scenario"] as string) || (req.query._scenario as string) || "default";
+    const scenarioKey = rawScenario.trim().toLowerCase();
 
-    // Rate Limit headers attached to every mock response (§9.4)
+    // Standard Rate Limit headers attached to every mock response (§9.4)
     res.setHeader("X-RateLimit-Limit", "100");
     res.setHeader("X-RateLimit-Remaining", "99");
     res.setHeader("X-RateLimit-Reset", String(Math.floor(Date.now() / 1000) + 60));
+    res.setHeader("X-MockLab-Scenario", scenarioKey);
 
+    // 5. Check if this request targets stateful scenarios / buckets (§6.5 & Phase 6)
+    const pathSegments = mockPath.split("/").filter(Boolean);
+    const resource = pathSegments[0]?.toLowerCase();
+    const itemId = pathSegments[1];
+    const subAction = pathSegments[2];
+
+    const rules = await this.dataStore.listMockRules(project.id);
+    const result = this.mockEngine.evaluate(rules, incoming);
+
+    // Check if a custom non-default rule overrides this request (e.g. injected fault or explicit mock rule)
+    const isCustomOverride =
+      result.matched &&
+      result.rule &&
+      !result.rule.generated &&
+      (result.rule.response?.fault || result.rule.response?.status >= 400 || (result.rule.priority !== undefined && result.rule.priority < 10));
+
+    // Determine if stateful bucket handling should be used
+    const hasBucketFlag =
+      result.rule?.response?.stateful === true ||
+      req.headers["x-mocklab-bucket"] === "true" ||
+      this.mockState.isResourceRegistered(project.id, resource) ||
+      (await this.mockState.listItems(project.id, scenarioKey, resource)).length > 0 ||
+      (incoming.method === "POST" && (!result.matched || result.rule?.generated));
+
+    if (resource && !isCustomOverride && hasBucketFlag) {
+      // 5a. Sub-action transition (e.g. POST /orders/:id/pay)
+      if (itemId && subAction && incoming.method === "POST") {
+        const scenario = await this.mockState.getScenario(project.id, scenarioKey, "order-lifecycle");
+        const matchingTransition = scenario?.transitions.find(
+          (t) => t.trigger.toLowerCase().includes(subAction.toLowerCase()) || t.to.toLowerCase() === subAction.toLowerCase()
+        );
+        const targetState = matchingTransition ? matchingTransition.to : subAction.toLowerCase();
+
+        await this.mockState.transitionScenario(
+          project.id,
+          scenarioKey,
+          scenario?.name || "order-lifecycle",
+          targetState,
+          `${incoming.method} ${mockPath}`
+        );
+        // Also update the item status if present in bucket
+        await this.mockState.updateItem(project.id, scenarioKey, resource, itemId, { status: targetState });
+        res.setHeader("X-MockLab-Rule", `stateful-scenario:${subAction}`);
+        return res.status(200).json({
+          id: itemId,
+          action: subAction,
+          state: targetState,
+          message: `Order transitioned to ${targetState}`,
+        });
+      }
+
+      // 5b. Collection POST: create item with server-generated UUID (never trust body id)
+      if (incoming.method === "POST" && !itemId) {
+        const item = await this.mockState.createItem(
+          project.id,
+          scenarioKey,
+          resource,
+          req.body && typeof req.body === "object" ? req.body : {}
+        );
+        res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:create`);
+        return res.status(201).json(item);
+      }
+
+      // 5c. Item GET: retrieve single item by id
+      if (incoming.method === "GET" && itemId) {
+        const item = await this.mockState.getItem(project.id, scenarioKey, resource, itemId);
+        if (!item) {
+          res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:not-found`);
+          return res.status(404).json({
+            error: "Not Found",
+            message: `Item '${itemId}' not found in bucket '${resource}'`,
+          });
+        }
+        res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:get`);
+        return res.status(200).json(item);
+      }
+
+      // 5d. Collection GET: list items
+      if (incoming.method === "GET" && !itemId) {
+        const items = await this.mockState.listItems(
+          project.id,
+          scenarioKey,
+          resource,
+          req.query.q as string
+        );
+        res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:list`);
+        return res.status(200).json(items);
+      }
+
+      // 5e. Item PUT / PATCH: update item
+      if ((incoming.method === "PUT" || incoming.method === "PATCH") && itemId) {
+        const updated = await this.mockState.updateItem(
+          project.id,
+          scenarioKey,
+          resource,
+          itemId,
+          req.body && typeof req.body === "object" ? req.body : {}
+        );
+        if (!updated) {
+          res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:not-found`);
+          return res.status(404).json({
+            error: "Not Found",
+            message: `Item '${itemId}' not found in bucket '${resource}'`,
+          });
+        }
+        res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:update`);
+        return res.status(200).json(updated);
+      }
+
+      // 5f. Item DELETE: remove item
+      if (incoming.method === "DELETE" && itemId) {
+        const deleted = await this.mockState.deleteItem(project.id, scenarioKey, resource, itemId);
+        if (!deleted) {
+          res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:not-found`);
+          return res.status(404).json({
+            error: "Not Found",
+            message: `Item '${itemId}' not found in bucket '${resource}'`,
+          });
+        }
+        res.setHeader("X-MockLab-Rule", `stateful-bucket:${resource}:delete`);
+        return res.status(200).json({ success: true, id: itemId, message: `Deleted from ${resource}` });
+      }
+    }
+
+    // 6. Evaluate Standard Mock Rules Engine
     if (result.matched && result.rule) {
       const rule = result.rule;
       await this.dataStore.updateMockRule(rule.id, { hitCount: rule.hitCount + 1 });
@@ -137,7 +263,7 @@ export class MockController {
       return res.status(statusCode).json(body);
     }
 
-    // 6. Unmatched Request -> 404 with Near-Miss Report (§2.1 & §9.4)
+    // 7. Unmatched Request -> 404 with Near-Miss Report (§2.1 & §9.4)
     res.setHeader("X-MockLab-Rule", "UNMATCHED");
     return res.status(404).json({
       error: "Unmatched Request",
