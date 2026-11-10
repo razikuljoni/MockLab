@@ -2,6 +2,22 @@
 
 All notable changes to MockLab will be documented in this file.
 
+## [Phase 3] - Mock Engine Core (2026-11-11)
+
+### Added
+- `apps/api`: Dynamic catch-all mock router (`/m/:slug` and `/m/:slug/*`) handling all HTTP verbs (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`).
+- `apps/api`: `MockEngineService` compiling OpenAPI path templates (e.g. `/pets/{id}` or `:id`) into regex route matchers with named param capture.
+- `apps/api`: First-match-wins rule evaluation engine with matcher clauses for method, path, query params, headers, and JSONPath body expressions.
+- `apps/api`: Injected latency simulation (`latencyMs`) and WireMock-style fault injection (`empty-body`, `malformed-json`).
+- `apps/api`: Mandatory rate limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`) and `X-MockLab-Rule` attached to every mock response.
+- `apps/api`: WireMock-style Near-Miss diagnostic report on unmatched requests, returning `404 Not Found` with closest candidate rule and exact missed clauses.
+- `apps/api`: Mock authentication guard enforcing API keys on `PRIVATE` projects with `401 Unauthorized` responses.
+- `apps/api`: Project status gate returning `503 Service Unavailable` with explanatory JSON when a project is `PAUSED`.
+
+### Verified
+- Automated test suite `src/mock/mock-engine-flow.spec.ts` confirms 100% of Phase 3 acceptance criteria: spec example 200 response with `X-MockLab-Rule`, 404 with near-miss report on `/nope`, 401 on unauthenticated private projects, and 503 on paused projects.
+- Full monorepo typecheck, lint, and build pass cleanly.
+
 ## [Phase 2] - Projects & OpenAPI Import (2026-11-11)
 
 ### Added

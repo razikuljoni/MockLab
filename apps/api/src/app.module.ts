@@ -6,6 +6,7 @@ import { AuthModule } from "./auth/auth.module";
 import { WorkspacesModule } from "./workspaces/workspaces.module";
 import { ProjectsModule } from "./projects/projects.module";
 import { SpecsModule } from "./specs/specs.module";
+import { MockModule } from "./mock/mock.module";
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { SpecsModule } from "./specs/specs.module";
     WorkspacesModule,
     ProjectsModule,
     SpecsModule,
+    MockModule,
   ],
 })
 export class AppModule {}
