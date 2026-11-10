@@ -2,6 +2,22 @@
 
 All notable changes to MockLab will be documented in this file.
 
+## [Phase 2] - Projects & OpenAPI Import (2026-11-11)
+
+### Added
+- `apps/api`: Native `SpecParserUtil` supporting OpenAPI 3.0/3.1 (JSON/YAML) and GraphQL schema parsing, recursive `$ref` dereferencing, circular reference protection, JSONPath validation error localization, and deterministic mock payload generation.
+- `apps/api`: `ProjectsModule` with `/api/v1/workspaces/:workspaceId/projects` (create/list), `/api/v1/projects/:projectId`, and `/api/v1/projects/:projectId/status` (Live/Paused toggle).
+- `apps/api`: `SpecsModule` with `/api/v1/projects/:projectId/spec/import`, `/api/v1/projects/:projectId/endpoints`, and `/api/v1/projects/:projectId/spec/diff`.
+- `apps/api`: Re-import diff engine computing added/changed/removed operations while strictly protecting human-edited rules (`edited: true`).
+- `apps/web`: Screen 6 — Projects List (`/projects`) with stats, search filter, 1-click mock URL copy, contract status badge, and "New Project" modal.
+- `apps/web`: Screen 7 — Project Overview (`/projects/[id]`) with Live/Paused toggle, Reset State trigger, 24h request counters, P50 response time, active rules, endpoints by tag, and recent traffic.
+- `apps/web`: Screen 8 — Import Spec (`/projects/[id]/import`) with Paste URL / Upload File / Paste Raw Spec tabs, drag-and-drop support, JSONPath error diagnostics, and re-import diff preview.
+- `apps/web`: Screen 9 — Endpoints List (`/projects/[id]/endpoints`) grouped by tag with method chips (GET/POST/PUT/DELETE), rule counters, hit counters, and contract status.
+
+### Verified
+- Automated test suite `src/specs/specs-flow.spec.ts` verifies 100% of Phase 2 criteria: clean Petstore import, JSONPath error pinpointing on invalid specs, and preservation of hand-edited rules on re-import.
+- Monorepo typecheck, lint, and Next.js / NestJS builds pass with zero warnings or errors.
+
 ## [Phase 1] - Auth, Workspaces, Roles & Public Pages (2026-11-11)
 
 ### Added

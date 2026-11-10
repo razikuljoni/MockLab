@@ -42,6 +42,33 @@ export interface ProjectRecord {
   updatedAt: Date;
 }
 
+export interface SpecVersionRecord {
+  id: string;
+  projectId: string;
+  version: number;
+  hash: string;
+  sourceUrl: string | null;
+  raw: any;
+  deref: any;
+  importedAt: Date;
+}
+
+export interface MockRuleRecord {
+  id: string;
+  projectId: string;
+  operationId: string;
+  priority: number;
+  name: string;
+  enabled: boolean;
+  generated: boolean;
+  edited: boolean;
+  matcher: any;
+  response: any;
+  hitCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 @Injectable()
 export class DataStoreService {
   private readonly logger = new Logger(DataStoreService.name);
@@ -52,6 +79,8 @@ export class DataStoreService {
   private workspaces = new Map<string, WorkspaceRecord>();
   private members: WorkspaceMemberRecord[] = [];
   private projects = new Map<string, ProjectRecord>();
+  private specVersions = new Map<string, SpecVersionRecord>();
+  private rules = new Map<string, MockRuleRecord>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -297,6 +326,129 @@ export class DataStoreService {
     return null;
   }
 
+  async updateProjectStatus(id: string, status: ProjectStatus): Promise<ProjectRecord | null> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.project.update({ where: { id }, data: { status } })) as ProjectRecord | null;
+    }
+    const p = this.projects.get(id);
+    if (!p) return null;
+    p.status = status;
+    p.updatedAt = new Date();
+    return p;
+  }
+
+  // --- Spec Versions ---
+  async createSpecVersion(data: {
+    projectId: string;
+    version: number;
+    hash: string;
+    sourceUrl?: string;
+    raw: any;
+    deref: any;
+  }): Promise<SpecVersionRecord> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.specVersion.create({ data })) as SpecVersionRecord;
+    }
+    const id = `spec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: SpecVersionRecord = {
+      id,
+      projectId: data.projectId,
+      version: data.version,
+      hash: data.hash,
+      sourceUrl: data.sourceUrl || null,
+      raw: data.raw,
+      deref: data.deref,
+      importedAt: new Date(),
+    };
+    this.specVersions.set(id, record);
+    return record;
+  }
+
+  async getLatestSpecVersion(projectId: string): Promise<SpecVersionRecord | null> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.specVersion.findFirst({
+        where: { projectId },
+        orderBy: { version: "desc" },
+      })) as SpecVersionRecord | null;
+    }
+    const matches = Array.from(this.specVersions.values())
+      .filter((s) => s.projectId === projectId)
+      .sort((a, b) => b.version - a.version);
+    return matches[0] || null;
+  }
+
+  // --- Mock Rules ---
+  async createMockRule(data: {
+    projectId: string;
+    operationId: string;
+    priority: number;
+    name: string;
+    enabled?: boolean;
+    generated?: boolean;
+    edited?: boolean;
+    matcher: any;
+    response: any;
+  }): Promise<MockRuleRecord> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.mockRule.create({ data })) as MockRuleRecord;
+    }
+    const id = `rule_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: MockRuleRecord = {
+      id,
+      projectId: data.projectId,
+      operationId: data.operationId,
+      priority: data.priority,
+      name: data.name,
+      enabled: data.enabled ?? true,
+      generated: data.generated ?? false,
+      edited: data.edited ?? false,
+      matcher: data.matcher,
+      response: data.response,
+      hitCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.rules.set(id, record);
+    return record;
+  }
+
+  async listMockRules(projectId: string, operationId?: string): Promise<MockRuleRecord[]> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.mockRule.findMany({
+        where: { projectId, ...(operationId ? { operationId } : {}) },
+        orderBy: { priority: "asc" },
+      })) as MockRuleRecord[];
+    }
+    return Array.from(this.rules.values())
+      .filter((r) => r.projectId === projectId && (!operationId || r.operationId === operationId))
+      .sort((a, b) => a.priority - b.priority);
+  }
+
+  async findMockRuleById(id: string): Promise<MockRuleRecord | null> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.mockRule.findUnique({ where: { id } })) as MockRuleRecord | null;
+    }
+    return this.rules.get(id) || null;
+  }
+
+  async updateMockRule(id: string, data: Partial<MockRuleRecord>): Promise<MockRuleRecord | null> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.mockRule.update({ where: { id }, data })) as MockRuleRecord | null;
+    }
+    const r = this.rules.get(id);
+    if (!r) return null;
+    Object.assign(r, data, { updatedAt: new Date() });
+    return r;
+  }
+
+  async deleteMockRule(id: string): Promise<boolean> {
+    if (this.isConnectedToPrisma) {
+      await this.prisma.mockRule.delete({ where: { id } });
+      return true;
+    }
+    return this.rules.delete(id);
+  }
+
   /**
    * Helper for tests: resets in-memory data
    */
@@ -305,5 +457,7 @@ export class DataStoreService {
     this.workspaces.clear();
     this.members = [];
     this.projects.clear();
+    this.specVersions.clear();
+    this.rules.clear();
   }
 }
