@@ -11,6 +11,7 @@ import { RulesModule } from "./rules/rules.module";
 import { ScenariosModule } from "./scenarios/scenarios.module";
 import { LogsModule } from "./logs/logs.module";
 import { ContractsModule } from "./contracts/contracts.module";
+import { CiModule } from "./ci/ci.module";
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { ContractsModule } from "./contracts/contracts.module";
     ScenariosModule,
     LogsModule,
     ContractsModule,
+    CiModule,
   ],
 })
 export class AppModule {}

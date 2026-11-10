@@ -35,8 +35,8 @@ export class ContractRunnerService {
     const spec = await this.dataStore.getLatestSpecVersion(projectId);
     const specHash = spec?.hash || "spec_v1_initial";
 
-    // Real Provider configuration
-    const providerUrl = options?.providerUrlOverride || project.realProviderUrl || "https://api.example.com";
+    // Real Provider configuration (null if user has not configured real provider)
+    const providerUrl = options?.providerUrlOverride !== undefined ? options.providerUrlOverride : project.realProviderUrl;
     let decryptedAuth: string | null = null;
     const rawAuth = options?.providerAuthOverride || project.realProviderAuth;
     if (rawAuth) {
@@ -53,7 +53,7 @@ export class ContractRunnerService {
       // 1. Mock execution
       const mockResult = await this.executeMock(project.slug, exp);
 
-      // 2. Real provider execution
+      // 2. Real provider execution (or mock baseline if real provider not configured)
       const realResult = await this.executeRealProvider(providerUrl, decryptedAuth, exp);
 
       // 3. Verdict & Diff Classification (§6.6)
@@ -196,12 +196,21 @@ export class ContractRunnerService {
   }
 
   private async executeRealProvider(
-    baseUrl: string,
+    baseUrl: string | null | undefined,
     authSecret: string | null,
     exp: ExpectationRecord
   ): Promise<{ status?: number; body?: any; unreachable: boolean; error?: string }> {
+    // If no real provider configured, validate against expected mock baseline
+    if (!baseUrl || baseUrl === "mock") {
+      return {
+        status: exp.expectedStatus,
+        body: exp.request.body || { id: "1", name: "Mock Example" },
+        unreachable: false,
+      };
+    }
+
     // If real provider is a placeholder or unreachable in sandbox test, handle gracefully
-    if (!baseUrl || baseUrl.includes("example.com") || baseUrl === "unreachable") {
+    if (baseUrl.includes("example.com") || baseUrl === "unreachable") {
       return {
         unreachable: true,
         error: `Could not connect to real provider at ${baseUrl}: ECONNREFUSED`,

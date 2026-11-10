@@ -123,6 +123,18 @@ export interface ContractRunRecord {
   }>;
 }
 
+export interface ContractScheduleRecord {
+  id: string;
+  projectId: string;
+  name: string;
+  cron: string;
+  enabled: boolean;
+  lastRunId: string | null;
+  lastVerdict: Verdict | null;
+  nextRunAt: Date | null;
+  createdAt: Date;
+}
+
 @Injectable()
 export class DataStoreService {
   private readonly logger = new Logger(DataStoreService.name);
@@ -138,6 +150,7 @@ export class DataStoreService {
   private requestLogs = new Map<string, RequestLogRecord>();
   private expectations = new Map<string, ExpectationRecord>();
   private contractRuns = new Map<string, ContractRunRecord>();
+  private schedules = new Map<string, ContractScheduleRecord>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -830,7 +843,7 @@ export class DataStoreService {
     }
     return Array.from(this.contractRuns.values())
       .filter((r) => r.projectId === projectId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id));
   }
 
   async findContractRunById(runId: string): Promise<ContractRunRecord | null> {
@@ -848,6 +861,99 @@ export class DataStoreService {
     return this.contractRuns.get(runId) || null;
   }
 
+  // ── ContractSchedule Operations ──
+  async createContractSchedule(
+    data: Omit<ContractScheduleRecord, "id" | "createdAt" | "lastRunId" | "lastVerdict" | "nextRunAt">
+  ): Promise<ContractScheduleRecord> {
+    const id = `sched_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: ContractScheduleRecord = {
+      ...data,
+      id,
+      lastRunId: null,
+      lastVerdict: null,
+      nextRunAt: new Date(Date.now() + 3600000), // default 1h ahead
+      createdAt: new Date(),
+    };
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.contractSchedule.create({
+          data: {
+            id: record.id,
+            projectId: record.projectId,
+            name: record.name,
+            cron: record.cron,
+            enabled: record.enabled,
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma createContractSchedule fallback: ${err.message}`);
+      }
+    }
+
+    this.schedules.set(id, record);
+    return record;
+  }
+
+  async listContractSchedules(projectId: string): Promise<ContractScheduleRecord[]> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const rows = await this.prisma.contractSchedule.findMany({
+          where: { projectId },
+          orderBy: { createdAt: "asc" },
+        });
+        if (rows.length > 0) return rows as any;
+      } catch {
+        // fallback
+      }
+    }
+    return Array.from(this.schedules.values()).filter((s) => s.projectId === projectId);
+  }
+
+  async findContractScheduleById(id: string): Promise<ContractScheduleRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const row = await this.prisma.contractSchedule.findUnique({ where: { id } });
+        if (row) return row as any;
+      } catch {
+        // fallback
+      }
+    }
+    return this.schedules.get(id) || null;
+  }
+
+  async updateContractSchedule(
+    id: string,
+    data: Partial<ContractScheduleRecord>
+  ): Promise<ContractScheduleRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const updated = await this.prisma.contractSchedule.update({
+          where: { id },
+          data,
+        });
+        if (updated) return updated as any;
+      } catch {
+        // fallback
+      }
+    }
+    const sched = this.schedules.get(id);
+    if (!sched) return null;
+    Object.assign(sched, data);
+    return sched;
+  }
+
+  async deleteContractSchedule(id: string): Promise<boolean> {
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.contractSchedule.delete({ where: { id } });
+      } catch {
+        // fallback
+      }
+    }
+    return this.schedules.delete(id);
+  }
+
   /**
    * Helper for tests: resets in-memory data
    */
@@ -861,5 +967,6 @@ export class DataStoreService {
     this.requestLogs.clear();
     this.expectations.clear();
     this.contractRuns.clear();
+    this.schedules.clear();
   }
 }
