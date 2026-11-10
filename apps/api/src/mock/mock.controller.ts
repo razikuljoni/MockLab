@@ -8,6 +8,7 @@ import {
 import { Request, Response } from "express";
 import { DataStoreService } from "../prisma/data-store.service";
 import { MockEngineService, IncomingMockRequest } from "./mock-engine.service";
+import { TemplateEngineUtil } from "./template-engine.util";
 import { ProjectStatus, MockAuth } from "@prisma/client";
 
 @Controller()
@@ -126,7 +127,13 @@ export class MockController {
       }
 
       const statusCode = rule.response?.status || 200;
-      const body = rule.response?.body !== undefined ? rule.response.body : { message: "Mock response" };
+      const rawBody = rule.response?.body !== undefined ? rule.response.body : { message: "Mock response" };
+      const body = TemplateEngineUtil.render(rawBody, {
+        body: req.body,
+        query: req.query as Record<string, any>,
+        params: result.params,
+        headers: req.headers as Record<string, any>,
+      });
       return res.status(statusCode).json(body);
     }
 
