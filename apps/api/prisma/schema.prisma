@@ -1,0 +1,259 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum Plan {
+  FREE
+  PRO
+  TEAM
+}
+
+enum ProjectStatus {
+  LIVE
+  PAUSED
+}
+
+enum MockAuth {
+  PUBLIC
+  PRIVATE
+}
+
+enum Protocol {
+  REST
+  GRAPHQL
+}
+
+enum RunStatus {
+  PASS
+  FAIL_BREAKING
+  ERROR
+}
+
+enum Verdict {
+  PASS
+  BREAKING
+  NON_BREAKING
+  ERROR
+}
+
+// ── Identity / tenants ──
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique
+  passwordHash String?           // null when GitHub-only
+  githubId     String?           @unique
+  name         String?
+  avatarUrl    String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  workspaces   WorkspaceMember[]
+}
+
+model Workspace {
+  id        String            @id @default(cuid())
+  name      String
+  slug      String            @unique
+  plan      Plan              @default(FREE)
+  createdAt DateTime          @default(now())
+  members   WorkspaceMember[]
+  projects  Project[]
+  apiKeys   ApiKey[]
+}
+
+model WorkspaceMember {
+  workspaceId String
+  userId      String
+  role        Role
+  joinedAt    DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, userId])
+}
+
+// ── Projects / specs / rules ──
+model Project {
+  id                String             @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name              String
+  slug              String             // used in mock URL
+  environment       String             @default("dev")
+  protocol          Protocol           @default(REST)
+  status            ProjectStatus      @default(LIVE)
+  mockAuth          MockAuth           @default(PRIVATE)
+  realProviderUrl   String?            // base URL of real API for contract runs
+  realProviderAuth  String?            // encrypted secret (AES-256-GCM, never logged)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  specVersions      SpecVersion[]
+  rules             MockRule[]
+  scenarios         ScenarioState[]
+  expectations      Expectation[]
+  contractRuns      ContractRun[]
+  contractSchedules ContractSchedule[]
+  requestLogs       RequestLog[]
+
+  @@unique([workspaceId, slug])
+}
+
+model SpecVersion {
+  id         String   @id @default(cuid())
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  version    Int      // 1, 2, 3...
+  hash       String   // sha256 of raw spec
+  sourceUrl  String?
+  raw        Json     // uploaded spec
+  deref      Json     // dereferenced spec
+  importedAt DateTime @default(now())
+}
+
+model MockRule {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  operationId String   // stable key, e.g. "GET /users/{id}" or "Query.user"
+  priority    Int      // lower = higher priority (first match wins)
+  name        String
+  enabled     Boolean  @default(true)
+  generated   Boolean  @default(false)
+  edited      Boolean  @default(false)
+  matcher     Json     // { method, path, query, headers, body, count }
+  response    Json     // { status, headers, body, latencyMs, fault }
+  hitCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([projectId, operationId, priority])
+}
+
+// ── Stateful scenarios ──
+model ScenarioState {
+  id           String   @id @default(cuid())
+  projectId    String
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name         String
+  scenarioKey  String?
+  currentState String   @default("initial")
+  updatedAt    DateTime @updatedAt
+
+  @@unique([projectId, name, scenarioKey])
+}
+
+// ── Contract tests ──
+model Expectation {
+  id             String   @id @default(cuid())
+  projectId      String
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  operationId    String
+  name           String
+  providerState  String?
+  request        Json
+  expectedStatus Int
+  expectedSchema Json
+  matchers       Json
+  generated      Boolean  @default(false)
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ContractRun {
+  id          String           @id @default(cuid())
+  projectId   String
+  project     Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  specHash    String
+  providerUrl String
+  status      RunStatus
+  triggeredBy String
+  durationMs  Int
+  createdAt   DateTime         @default(now())
+  results     ContractResult[]
+}
+
+model ContractResult {
+  id            String      @id @default(cuid())
+  runId         String
+  run           ContractRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  expectationId String
+  mockStatus    Int?
+  realStatus    Int?
+  verdict       Verdict
+  diff          Json
+  createdAt     DateTime    @default(now())
+}
+
+model ContractSchedule {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  cron        String
+  enabled     Boolean   @default(true)
+  lastRunId   String?
+  lastVerdict Verdict?
+  nextRunAt   DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+// ── Keys / logs / usage ──
+model ApiKey {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name            String
+  prefix          String
+  keyHash         String
+  last4           String
+  scopes          String[]
+  rateLimitPerMin Int       @default(100)
+  monthlyQuota    Int       @default(0) // 0 = unlimited
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([keyHash])
+}
+
+model RequestLog {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  method        String
+  path          String
+  status        Int
+  matchedRuleId String?
+  nearMiss      Json?
+  latencyMs     Int
+  injectedMs    Int      @default(0)
+  requestSize   Int
+  responseSize  Int
+  requestBody   Json?
+  responseBody  Json?
+  createdAt     DateTime @default(now())
+
+  @@index([projectId, createdAt])
+  @@index([projectId, matchedRuleId])
+}
+
+model UsageCounter {
+  workspaceId  String
+  month        String   // "YYYY-MM"
+  mockRequests Int      @default(0)
+  contractRuns Int      @default(0)
+
+  @@id([workspaceId, month])
+}

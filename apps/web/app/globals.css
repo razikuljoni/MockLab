@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --signal: #65A30D;
+    --signal-dim: #ECFCCB;
+    --ink: #131A0A;
+    --ink-2: #4A5240;
+    --ink-3: #7A8270;
+    --surface-0: #F4F5EF;
+    --surface-1: #FFFFFF;
+    --surface-2: #ECEEE3;
+    --surface-3: #E7E9DC;
+    --border: #D8DACE;
+    --border-strong: #B9BCAE;
+    --success: #15803D;
+    --warning: #A16207;
+    --danger: #B91C1C;
+    --info: #0E7490;
+  }
+
+  .dark, :root:not(.light) {
+    --signal: #BFFF3C;
+    --signal-dim: #2A3313;
+    --ink: #F2F5E9;
+    --ink-2: #A8B09A;
+    --ink-3: #6E7663;
+    --surface-0: #101208;
+    --surface-1: #171A10;
+    --surface-2: #1F2318;
+    --surface-3: #0C0E07;
+    --border: #2A2E22;
+    --border-strong: #3D4232;
+    --success: #4ADE80;
+    --warning: #FACC15;
+    --danger: #F87171;
+    --info: #67E8F9;
+  }
+}
+
+body {
+  background-color: var(--surface-0);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, pre, .font-mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* Method badge styles (§3.1) */
+.badge-get { color: #4ADE80; background-color: rgba(74, 222, 128, 0.12); }
+.badge-post { color: #FACC15; background-color: rgba(250, 204, 21, 0.12); }
+.badge-put { color: #67E8F9; background-color: rgba(103, 232, 249, 0.12); }
+.badge-patch { color: #C084FC; background-color: rgba(192, 132, 252, 0.12); }
+.badge-delete { color: #F87171; background-color: rgba(248, 113, 113, 0.12); }
