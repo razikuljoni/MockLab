@@ -105,19 +105,64 @@ export class WorkspacesController {
     );
   }
 
-  /**
-   * Keys access check endpoint (§6.7 & Phase 1 acceptance gate)
-   * Viewers are explicitly forbidden (403) from accessing keys!
-   */
-  @Get(":workspaceId/keys")
-  @RequireRoles(Role.OWNER, Role.ADMIN, Role.EDITOR)
-  async getKeys(
+  @Patch(":workspaceId")
+  @RequireRoles(Role.OWNER, Role.ADMIN)
+  async updateSettings(
+    @Req() req: { user: { userId: string } },
+    @Param("workspaceId") workspaceId: string,
+    @Body()
+    body: {
+      name?: string;
+      slug?: string;
+      defaultEnv?: string;
+      mockAuthDefault?: "PUBLIC" | "PRIVATE";
+      logRetentionDays?: number;
+    }
+  ) {
+    return this.workspacesService.updateSettings(workspaceId, req.user.userId, body);
+  }
+
+  @Post(":workspaceId/pause-all")
+  @RequireRoles(Role.OWNER, Role.ADMIN)
+  async pauseAllProjects(
+    @Req() req: { user: { userId: string } },
     @Param("workspaceId") workspaceId: string
   ) {
-    return {
+    return this.workspacesService.pauseAllProjects(workspaceId, req.user.userId);
+  }
+
+  @Delete(":workspaceId")
+  @RequireRoles(Role.OWNER)
+  async deleteWorkspace(
+    @Req() req: { user: { userId: string } },
+    @Param("workspaceId") workspaceId: string
+  ) {
+    return this.workspacesService.deleteWorkspace(workspaceId, req.user.userId);
+  }
+
+  @Get(":workspaceId/billing")
+  @RequireRoles(Role.OWNER, Role.ADMIN)
+  async getBilling(
+    @Req() req: { user: { userId: string } },
+    @Param("workspaceId") workspaceId: string
+  ) {
+    return this.workspacesService.getBilling(workspaceId, req.user.userId);
+  }
+
+  @Patch(":workspaceId/billing")
+  @RequireRoles(Role.OWNER)
+  async updateBilling(
+    @Req() req: { user: { userId: string } },
+    @Param("workspaceId") workspaceId: string,
+    @Body("plan") plan: string
+  ) {
+    if (!plan || !(plan.toUpperCase() in Role || plan.toUpperCase() in ["FREE", "PRO", "TEAM"])) {
+      // Allow FREE, PRO, TEAM
+    }
+    return this.workspacesService.updateBilling(
       workspaceId,
-      keys: [],
-      message: "Keys endpoint authorized",
-    };
+      req.user.userId,
+      plan.toUpperCase() as any
+    );
   }
 }

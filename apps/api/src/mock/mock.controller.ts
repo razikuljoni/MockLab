@@ -4,6 +4,7 @@ import {
   Req,
   Res,
   Logger,
+  Optional,
 } from "@nestjs/common";
 import { Request, Response } from "express";
 import { DataStoreService } from "../prisma/data-store.service";
@@ -11,6 +12,7 @@ import { MockEngineService, IncomingMockRequest } from "./mock-engine.service";
 import { TemplateEngineUtil } from "./template-engine.util";
 import { MockStateService } from "../scenarios/mock-state.service";
 import { RequestLoggerService } from "../logs/request-logger.service";
+import { ApiKeysService } from "../keys/api-keys.service";
 import { ProjectStatus, MockAuth } from "@prisma/client";
 
 @Controller()
@@ -21,7 +23,8 @@ export class MockController {
     private readonly dataStore: DataStoreService,
     private readonly mockEngine: MockEngineService,
     private readonly mockState: MockStateService,
-    private readonly requestLogger: RequestLoggerService
+    private readonly requestLogger: RequestLoggerService,
+    @Optional() private readonly apiKeysService?: ApiKeysService
   ) {}
 
   @All(["m/:slug", "m/:slug/*"])
@@ -70,18 +73,38 @@ export class MockController {
       return res.status(503).json(pausedRes);
     }
 
-    // 3. Mock Authentication Gate (§6.7 & Acceptance Criteria)
-    if (project.mockAuth === MockAuth.PRIVATE) {
-      const mockKey =
-        req.headers["x-mocklab-key"] ||
-        (typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")
-          ? req.headers.authorization.substring(7)
-          : null);
+    // 3. Mock Authentication Gate & Key Validation / Rate Limiting (§6.7 & Acceptance Criteria)
+    const rawMockKey =
+      req.headers["x-mocklab-key"] ||
+      (typeof req.headers.authorization === "string" && req.headers.authorization.startsWith("Bearer ")
+        ? req.headers.authorization.substring(7)
+        : null);
+    const mockKey = Array.isArray(rawMockKey) ? rawMockKey[0] : rawMockKey;
 
-      if (!mockKey) {
+    if (project.mockAuth === MockAuth.PRIVATE && !mockKey) {
+      const unauthRes = {
+        error: "Unauthorized",
+        message: "This mock server requires a project API key (X-MockLab-Key header or Bearer token)",
+      };
+      this.requestLogger.enqueueLog({
+        projectId: project.id,
+        method: req.method,
+        path: req.originalUrl,
+        status: 401,
+        latencyMs: Date.now() - startTime,
+        requestHeaders: req.headers,
+        requestBody: req.body,
+        responseBody: unauthRes,
+      });
+      return res.status(401).json(unauthRes);
+    }
+
+    if (mockKey && typeof mockKey === "string" && this.apiKeysService) {
+      const keyVal = await this.apiKeysService.validateAndRateLimit(mockKey);
+      if (!keyVal.valid) {
         const unauthRes = {
           error: "Unauthorized",
-          message: "This mock server requires a project API key (X-MockLab-Key header or Bearer token)",
+          message: keyVal.error || "Invalid API key",
         };
         this.requestLogger.enqueueLog({
           projectId: project.id,
@@ -94,6 +117,27 @@ export class MockController {
           responseBody: unauthRes,
         });
         return res.status(401).json(unauthRes);
+      }
+
+      if (keyVal.rateLimited) {
+        if (keyVal.resetSec) {
+          res.setHeader("Retry-After", keyVal.resetSec.toString());
+        }
+        const rateLimitRes = {
+          error: "Too Many Requests",
+          message: keyVal.error || "Rate limit exceeded",
+        };
+        this.requestLogger.enqueueLog({
+          projectId: project.id,
+          method: req.method,
+          path: req.originalUrl,
+          status: 429,
+          latencyMs: Date.now() - startTime,
+          requestHeaders: req.headers,
+          requestBody: req.body,
+          responseBody: rateLimitRes,
+        });
+        return res.status(429).json(rateLimitRes);
       }
     }
 
@@ -112,7 +156,7 @@ export class MockController {
     };
 
     // Scenario key isolation (§6.5 & §10)
-    const rawScenario = (req.headers["x-mocklab-scenario"] as string) || (req.query._scenario as string) || "default";
+    const rawScenario = (req.headers["x-mocklab-scenario"] as string) || (req.query?._scenario as string) || "default";
     const scenarioKey = rawScenario.trim().toLowerCase();
 
     // Standard Rate Limit headers attached to every mock response (§9.4)

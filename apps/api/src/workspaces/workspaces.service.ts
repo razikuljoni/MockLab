@@ -149,4 +149,151 @@ export class WorkspacesService {
     await this.dataStore.removeMember(workspaceId, targetUserId);
     return { success: true, message: "Member removed" };
   }
+
+  // ── Workspace Settings, Danger Zone & Billing (§6.1, §6.8, §6.9, §10) ──
+
+  async updateSettings(
+    workspaceId: string,
+    actorUserId: string,
+    data: {
+      name?: string;
+      slug?: string;
+      defaultEnv?: string;
+      mockAuthDefault?: "PUBLIC" | "PRIVATE";
+      logRetentionDays?: number;
+    }
+  ) {
+    const actorMember = await this.dataStore.getWorkspaceMember(workspaceId, actorUserId);
+    if (!actorMember || (actorMember.role !== Role.OWNER && actorMember.role !== Role.ADMIN)) {
+      throw new ForbiddenException("Only workspace Owners and Admins can update settings");
+    }
+
+    const ws = await this.dataStore.findWorkspaceById(workspaceId);
+    if (!ws) throw new NotFoundException("Workspace not found");
+
+    if (data.slug && data.slug !== ws.slug) {
+      const existing = await this.dataStore.findWorkspaceBySlug(data.slug);
+      if (existing) {
+        throw new ConflictException(`Workspace with slug '${data.slug}' already exists`);
+      }
+    }
+
+    const updated = await this.dataStore.updateWorkspace(workspaceId, data);
+    return updated;
+  }
+
+  async pauseAllProjects(workspaceId: string, actorUserId: string) {
+    const actorMember = await this.dataStore.getWorkspaceMember(workspaceId, actorUserId);
+    if (!actorMember || (actorMember.role !== Role.OWNER && actorMember.role !== Role.ADMIN)) {
+      throw new ForbiddenException("Only workspace Owners and Admins can pause all mocks");
+    }
+
+    const count = await this.dataStore.pauseAllWorkspaceProjects(workspaceId);
+    return { success: true, message: `Paused ${count} project mock servers in workspace`, pausedCount: count };
+  }
+
+  async deleteWorkspace(workspaceId: string, actorUserId: string) {
+    const actorMember = await this.dataStore.getWorkspaceMember(workspaceId, actorUserId);
+    if (!actorMember || actorMember.role !== Role.OWNER) {
+      throw new ForbiddenException("Only the workspace Owner can delete the workspace");
+    }
+
+    const deleted = await this.dataStore.deleteWorkspace(workspaceId);
+    return { success: deleted, message: "Workspace deleted" };
+  }
+
+  async getBilling(workspaceId: string, actorUserId: string) {
+    const actorMember = await this.dataStore.getWorkspaceMember(workspaceId, actorUserId);
+    if (!actorMember || (actorMember.role !== Role.OWNER && actorMember.role !== Role.ADMIN)) {
+      throw new ForbiddenException("Only workspace Owners and Admins can view billing");
+    }
+
+    const ws = await this.dataStore.findWorkspaceById(workspaceId);
+    if (!ws) throw new NotFoundException("Workspace not found");
+
+    const projects = await this.dataStore.listWorkspaceProjects(workspaceId);
+    let mockRequests = 0;
+    let contractRuns = 0;
+
+    for (const proj of projects) {
+      const logs = await this.dataStore.listRequestLogs(proj.id, { limit: 1000 });
+      mockRequests += logs.total;
+      const runs = await this.dataStore.listContractRuns(proj.id, { limit: 1000 });
+      contractRuns += runs.total;
+    }
+
+    const planLimits = PLAN_LIMITS[ws.plan] || PLAN_LIMITS[Plan.FREE];
+
+    return {
+      plan: ws.plan,
+      limits: planLimits,
+      usage: {
+        mockRequests,
+        contractRuns,
+        projectsCount: projects.length,
+        logRetentionDays: ws.logRetentionDays || planLimits.logRetentionDays,
+      },
+      plans: PLAN_LIMITS,
+    };
+  }
+
+  async updateBilling(workspaceId: string, actorUserId: string, newPlan: Plan) {
+    const actorMember = await this.dataStore.getWorkspaceMember(workspaceId, actorUserId);
+    if (!actorMember || actorMember.role !== Role.OWNER) {
+      throw new ForbiddenException("Only the workspace Owner can modify the billing plan");
+    }
+
+    const ws = await this.dataStore.findWorkspaceById(workspaceId);
+    if (!ws) throw new NotFoundException("Workspace not found");
+
+    const updated = await this.dataStore.updateWorkspace(workspaceId, { plan: newPlan });
+    return {
+      success: true,
+      plan: newPlan,
+      workspace: updated,
+      limits: PLAN_LIMITS[newPlan],
+    };
+  }
 }
+
+export const PLAN_LIMITS: Record<Plan, {
+  name: string;
+  price: number;
+  mockRequests: number;
+  contractRuns: number;
+  logRetentionDays: number;
+  maxProjects: number;
+  teamMembers: number;
+  features: string[];
+}> = {
+  [Plan.FREE]: {
+    name: "Free",
+    price: 0,
+    mockRequests: 10_000,
+    contractRuns: 50,
+    logRetentionDays: 7,
+    maxProjects: 3,
+    teamMembers: 2,
+    features: ["Core Mock Engine", "OpenAPI 3.0 / 3.1", "7-Day Log Retention", "Community Support"],
+  },
+  [Plan.PRO]: {
+    name: "Pro",
+    price: 19,
+    mockRequests: 250_000,
+    contractRuns: 2_500,
+    logRetentionDays: 30,
+    maxProjects: 20,
+    teamMembers: 10,
+    features: ["All Free Features", "Fault Injection & Dynamic Delays", "Automated Contract CI Sweep", "30-Day Log Retention", "Priority Email Support"],
+  },
+  [Plan.TEAM]: {
+    name: "Team",
+    price: 79,
+    mockRequests: 1_000_000,
+    contractRuns: 10_000,
+    logRetentionDays: 90,
+    maxProjects: -1,
+    teamMembers: -1,
+    features: ["All Pro Features", "Unlimited Projects & Members", "90-Day Log Retention", "Custom Domains", "Dedicated Support & SLA"],
+  },
+};

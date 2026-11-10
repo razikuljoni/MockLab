@@ -17,6 +17,9 @@ export interface WorkspaceRecord {
   name: string;
   slug: string;
   plan: Plan;
+  defaultEnv?: string;
+  mockAuthDefault?: "PUBLIC" | "PRIVATE";
+  logRetentionDays?: number;
   createdAt: Date;
 }
 
@@ -135,6 +138,21 @@ export interface ContractScheduleRecord {
   createdAt: Date;
 }
 
+export interface ApiKeyRecord {
+  id: string;
+  workspaceId: string;
+  name: string;
+  prefix: string;
+  keyHash: string;
+  last4: string;
+  scopes: string[];
+  rateLimitPerMin: number;
+  monthlyQuota: number;
+  lastUsedAt: Date | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+}
+
 @Injectable()
 export class DataStoreService {
   private readonly logger = new Logger(DataStoreService.name);
@@ -151,6 +169,7 @@ export class DataStoreService {
   private expectations = new Map<string, ExpectationRecord>();
   private contractRuns = new Map<string, ContractRunRecord>();
   private schedules = new Map<string, ContractScheduleRecord>();
+  private apiKeys = new Map<string, ApiKeyRecord>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -213,9 +232,22 @@ export class DataStoreService {
   }
 
   // --- Workspaces ---
-  async createWorkspace(data: { name: string; slug: string; plan?: Plan }): Promise<WorkspaceRecord> {
+  async createWorkspace(data: {
+    name: string;
+    slug: string;
+    plan?: Plan;
+    defaultEnv?: string;
+    mockAuthDefault?: "PUBLIC" | "PRIVATE";
+    logRetentionDays?: number;
+  }): Promise<WorkspaceRecord> {
     if (this.isConnectedToPrisma) {
-      return (await this.prisma.workspace.create({ data: { ...data, plan: data.plan || Plan.FREE } })) as WorkspaceRecord;
+      return (await this.prisma.workspace.create({
+        data: {
+          name: data.name,
+          slug: data.slug,
+          plan: data.plan || Plan.FREE,
+        },
+      })) as WorkspaceRecord;
     }
     const id = `ws_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const record: WorkspaceRecord = {
@@ -223,6 +255,9 @@ export class DataStoreService {
       name: data.name,
       slug: data.slug.toLowerCase(),
       plan: data.plan || Plan.FREE,
+      defaultEnv: data.defaultEnv || "development",
+      mockAuthDefault: data.mockAuthDefault || "PUBLIC",
+      logRetentionDays: data.logRetentionDays || 7,
       createdAt: new Date(),
     };
     this.workspaces.set(id, record);
@@ -954,6 +989,177 @@ export class DataStoreService {
     return this.schedules.delete(id);
   }
 
+  // ── ApiKey Operations ──
+  async createApiKey(
+    data: Omit<ApiKeyRecord, "id" | "createdAt" | "lastUsedAt" | "revokedAt">
+  ): Promise<ApiKeyRecord> {
+    const id = `key_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const record: ApiKeyRecord = {
+      ...data,
+      id,
+      lastUsedAt: null,
+      revokedAt: null,
+      createdAt: new Date(),
+    };
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.apiKey.create({
+          data: {
+            id: record.id,
+            workspaceId: record.workspaceId,
+            name: record.name,
+            prefix: record.prefix,
+            keyHash: record.keyHash,
+            last4: record.last4,
+            scopes: record.scopes,
+            rateLimitPerMin: record.rateLimitPerMin,
+            monthlyQuota: record.monthlyQuota,
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma createApiKey fallback: ${err.message}`);
+      }
+    }
+
+    this.apiKeys.set(id, record);
+    return record;
+  }
+
+  async listApiKeys(workspaceId: string): Promise<ApiKeyRecord[]> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const rows = await this.prisma.apiKey.findMany({
+          where: { workspaceId },
+          orderBy: { createdAt: "desc" },
+        });
+        if (rows.length > 0) return rows as any;
+      } catch {
+        // fallback
+      }
+    }
+    return Array.from(this.apiKeys.values()).filter((k) => k.workspaceId === workspaceId);
+  }
+
+  async findApiKeyByHash(keyHash: string): Promise<ApiKeyRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const row = await this.prisma.apiKey.findFirst({ where: { keyHash } });
+        if (row) return row as any;
+      } catch {
+        // fallback
+      }
+    }
+    for (const key of this.apiKeys.values()) {
+      if (key.keyHash === keyHash) return key;
+    }
+    return null;
+  }
+
+  async findApiKeyById(id: string): Promise<ApiKeyRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const row = await this.prisma.apiKey.findUnique({ where: { id } });
+        if (row) return row as any;
+      } catch {
+        // fallback
+      }
+    }
+    return this.apiKeys.get(id) || null;
+  }
+
+  async revokeApiKey(id: string): Promise<ApiKeyRecord | null> {
+    const now = new Date();
+    if (this.isConnectedToPrisma) {
+      try {
+        const updated = await this.prisma.apiKey.update({
+          where: { id },
+          data: { revokedAt: now },
+        });
+        if (updated) return updated as any;
+      } catch {
+        // fallback
+      }
+    }
+    const key = this.apiKeys.get(id);
+    if (!key) return null;
+    key.revokedAt = now;
+    return key;
+  }
+
+  async deleteApiKey(id: string): Promise<boolean> {
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.apiKey.delete({ where: { id } });
+      } catch {
+        // fallback
+      }
+    }
+    return this.apiKeys.delete(id);
+  }
+
+  // ── Workspace Update / Delete / Pause Operations ──
+  async updateWorkspace(id: string, data: Partial<WorkspaceRecord>): Promise<WorkspaceRecord | null> {
+    if (this.isConnectedToPrisma) {
+      try {
+        const updated = await this.prisma.workspace.update({
+          where: { id },
+          data: {
+            ...(data.name ? { name: data.name } : {}),
+            ...(data.slug ? { slug: data.slug } : {}),
+            ...(data.plan ? { plan: data.plan } : {}),
+          },
+        });
+        if (updated) return updated as any;
+      } catch {
+        // fallback
+      }
+    }
+    const ws = this.workspaces.get(id);
+    if (!ws) return null;
+    Object.assign(ws, data);
+    return ws;
+  }
+
+  async deleteWorkspace(id: string): Promise<boolean> {
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.workspace.delete({ where: { id } });
+      } catch {
+        // fallback
+      }
+    }
+    this.workspaces.delete(id);
+    // Cascade delete members and projects in memory
+    this.members = this.members.filter((m) => m.workspaceId !== id);
+    for (const [projId, proj] of this.projects.entries()) {
+      if (proj.workspaceId === id) this.projects.delete(projId);
+    }
+    return true;
+  }
+
+  async pauseAllWorkspaceProjects(workspaceId: string): Promise<number> {
+    let paused = 0;
+    if (this.isConnectedToPrisma) {
+      try {
+        const res = await this.prisma.project.updateMany({
+          where: { workspaceId },
+          data: { status: ProjectStatus.PAUSED },
+        });
+        paused = res.count;
+      } catch {
+        // fallback
+      }
+    }
+    for (const proj of this.projects.values()) {
+      if (proj.workspaceId === workspaceId) {
+        proj.status = ProjectStatus.PAUSED;
+        paused++;
+      }
+    }
+    return paused;
+  }
+
   /**
    * Helper for tests: resets in-memory data
    */
@@ -968,5 +1174,6 @@ export class DataStoreService {
     this.expectations.clear();
     this.contractRuns.clear();
     this.schedules.clear();
+    this.apiKeys.clear();
   }
 }
