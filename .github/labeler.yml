@@ -1,0 +1,29 @@
+area:web:
+  - changed-files:
+      - any-glob-to-any-file: 'apps/web/**'
+
+area:api:
+  - changed-files:
+      - any-glob-to-any-file: 'apps/api/**'
+
+area:shared:
+  - changed-files:
+      - any-glob-to-any-file: 'packages/shared/**'
+
+area:ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+          - 'scripts/**'
+
+area:docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '*.md'
+
+area:dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'pnpm-lock.yaml'
+          - '**/package.json'
