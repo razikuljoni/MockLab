@@ -183,6 +183,26 @@ Deploy `apps/api` using the included `render.yaml` Blueprint or `Dockerfile`:
 
 ---
 
+## CI/CD, Versioning & Release Automation
+
+MockLab features a production-grade CI/CD and release automation suite:
+
+- **Continuous Integration (`.github/workflows/ci.yml`)**:
+  - Validates every commit on `main` and Pull Requests with containerized PostgreSQL 16 & Redis 7 services.
+  - Concurrency group cancellation stops redundant runs on rapid branch pushes.
+  - Multi-stage verification: Prisma client generation, `@mocklab/shared` compilation, ESLint flat config, strict TypeScript typechecking, Vitest unit & integration suites (56 tests), Playwright live E2E tests (Flows F1–F5), and production Next.js/NestJS builds.
+- **Automated Versioning & Changelogs (`.github/workflows/release.yml`)**:
+  - Powered by [Changesets](https://github.com/changesets/changesets).
+  - Run `pnpm changeset` or `pnpm changeset:auto` on your feature branch to record semantic changes.
+  - Merging to `main` automatically creates/updates a **"Version Packages"** release PR with synchronized semver bumps across `@mocklab/*` packages.
+  - Merging the release PR automatically tags git releases, creates GitHub Releases, and aggregates release entries into root `CHANGELOG.md`.
+- **Semantic Pull Requests (`.github/workflows/pr-lint.yml`)**:
+  - Enforces Conventional Commits (`feat:`, `fix:`, `chore:`, `perf:`, etc.) on PR titles to guarantee clean changelogs.
+- **Automated Dependency Updates (`.github/dependabot.yml`)**:
+  - Weekly grouped security and dependency updates for pnpm workspaces and GitHub Actions.
+
+---
+
 ## Documentation & References
 
 - [Architecture & Subsystem Design](docs/ARCHITECTURE.md)

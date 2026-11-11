@@ -54,3 +54,21 @@ We follow Conventional Commits:
 - `fix(scenarios)`: State bucket bug fixes
 - `docs(...)`: Documentation improvements
 - `test(...)`: Unit/integration test suites
+
+Pull Request titles must follow the format `<type>(<scope>): <summary>` to pass the PR linter.
+
+---
+
+## Adding Changesets
+
+For any feature or bug fix that affects `@mocklab/*` packages, add a changeset before opening your PR:
+
+```bash
+# Interactive CLI
+pnpm changeset
+
+# Or automatic generator based on your branch commits
+pnpm changeset:auto
+```
+
+Commit the generated file under `.changeset/`. When your PR merges to `main`, release automation will bump versions and update `CHANGELOG.md` automatically.
