@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Github, Lock, Mail, Building, Check, X, AlertCircle } from "lucide-react";
+import { ArrowRight, Lock, Mail, Building, Check, X, AlertCircle } from "lucide-react";
+import { getApiBaseUrl } from "../../../lib/api";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -32,7 +33,8 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:3001/api/v1/auth/signup", {
+      const apiBase = getApiBaseUrl();
+      const res = await fetch(`${apiBase}/api/v1/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,23 +80,7 @@ export default function SignupPage() {
         </div>
       )}
 
-      {/* GitHub OAuth Button */}
-      <button
-        type="button"
-        onClick={() => router.push("/dashboard")}
-        className="w-full py-2.5 px-4 rounded-md border border-[var(--border)] bg-[var(--surface-2)] text-[var(--ink)] text-xs font-medium hover:bg-[var(--surface-0)] transition-colors flex items-center justify-center gap-2"
-      >
-        <Github className="w-4 h-4" />
-        <span>Sign up with GitHub</span>
-      </button>
 
-      <div className="flex items-center gap-3">
-        <span className="flex-1 h-px bg-[var(--border)]"></span>
-        <span className="text-[11px] text-[var(--ink-3)] uppercase tracking-wider font-mono">
-          or with email
-        </span>
-        <span className="flex-1 h-px bg-[var(--border)]"></span>
-      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
         <div className="space-y-1.5">

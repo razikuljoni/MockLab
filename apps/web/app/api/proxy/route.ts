@@ -11,12 +11,19 @@ export async function POST(req: NextRequest) {
     // Resolve localhost / internal API mapping if needed
     let targetUrl = url;
     if (targetUrl.includes(".mocklab.dev")) {
-      // Route through local mock engine in development mode
+      // Route through mock engine (Render API, local dev, or origin)
       const slugMatch = targetUrl.match(/https?:\/\/([^.]+)\.mocklab\.dev(.*)/);
       if (slugMatch) {
         const slug = slugMatch[1];
         const restPath = slugMatch[2] || "";
-        targetUrl = `http://localhost:3001/m/${slug}${restPath}`;
+        const host = req.headers.get("host") || "127.0.0.1:3001";
+        const proto = req.headers.get("x-forwarded-proto") || "http";
+        const origin = `${proto}://${host}`;
+        const apiBase =
+          process.env.NEXT_PUBLIC_API_URL ||
+          process.env.API_URL ||
+          origin;
+        targetUrl = `${apiBase.replace(/\/+$/, "")}/m/${slug}${restPath}`;
       }
     }
 

@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: mocklab-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set in Render Dashboard from Neon/Supabase free Postgres
+      - key: REDIS_URL
+        sync: false # Set in Render Dashboard from Upstash or managed Redis
+      - key: JWT_SECRET
+        generateValue: true # Render automatically provisions 64-char crypto string
+      - key: SECRET_ENCRYPTION_KEY
+        sync: false # Generate using: openssl rand -hex 32
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://mocklab-theta.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://mocklab-theta.vercel.app,http://localhost:3000
