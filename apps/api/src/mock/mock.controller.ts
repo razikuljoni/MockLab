@@ -18,6 +18,7 @@ import { ProjectStatus, MockAuth } from "@prisma/client";
 @Controller()
 export class MockController {
   private readonly logger = new Logger(MockController.name);
+  private readonly publicRateLimitWindows = new Map<string, { windowStart: number; count: number }>();
 
   constructor(
     private readonly dataStore: DataStoreService,
@@ -99,8 +100,9 @@ export class MockController {
       return res.status(401).json(unauthRes);
     }
 
+    let keyVal: any = null;
     if (mockKey && typeof mockKey === "string" && this.apiKeysService) {
-      const keyVal = await this.apiKeysService.validateAndRateLimit(mockKey);
+      keyVal = await this.apiKeysService.validateAndRateLimit(mockKey);
       if (!keyVal.valid) {
         const unauthRes = {
           error: "Unauthorized",
@@ -159,10 +161,47 @@ export class MockController {
     const rawScenario = (req.headers["x-mocklab-scenario"] as string) || (req.query?._scenario as string) || "default";
     const scenarioKey = rawScenario.trim().toLowerCase();
 
-    // Standard Rate Limit headers attached to every mock response (§9.4)
-    res.setHeader("X-RateLimit-Limit", "100");
-    res.setHeader("X-RateLimit-Remaining", "99");
-    res.setHeader("X-RateLimit-Reset", String(Math.floor(Date.now() / 1000) + 60));
+    // Dynamic Rate Limiting & Counters (§9.3, §10 Done when)
+    let limit = 100;
+    let remaining = 99;
+    let resetSec = 60;
+
+    if (keyVal && keyVal.valid) {
+      limit = keyVal.limit || 100;
+      remaining = keyVal.remaining ?? 99;
+      resetSec = keyVal.resetSec || 60;
+    } else {
+      const clientIp = (req.headers["x-forwarded-for"] as string) || req.ip || "127.0.0.1";
+      const now = Date.now();
+      let win = this.publicRateLimitWindows.get(clientIp);
+      if (!win || now - win.windowStart >= 60000) {
+        win = { windowStart: now, count: 1 };
+        this.publicRateLimitWindows.set(clientIp, win);
+      } else {
+        win.count++;
+      }
+      limit = 100;
+      remaining = Math.max(0, limit - win.count);
+      resetSec = Math.max(1, Math.ceil((win.windowStart + 60000 - now) / 1000));
+
+      if (
+        win.count > limit &&
+        (process.env.NODE_ENV !== "test" || req.headers["x-test-ratelimit"])
+      ) {
+        res.setHeader("Retry-After", String(resetSec));
+        res.setHeader("X-RateLimit-Limit", String(limit));
+        res.setHeader("X-RateLimit-Remaining", "0");
+        res.setHeader("X-RateLimit-Reset", String(Math.floor(Date.now() / 1000) + resetSec));
+        return res.status(429).json({
+          error: "Too Many Requests",
+          message: `Public rate limit of ${limit} req/min exceeded`,
+        });
+      }
+    }
+
+    res.setHeader("X-RateLimit-Limit", String(limit));
+    res.setHeader("X-RateLimit-Remaining", String(remaining));
+    res.setHeader("X-RateLimit-Reset", String(Math.floor(Date.now() / 1000) + resetSec));
     res.setHeader("X-MockLab-Scenario", scenarioKey);
 
     // 5. Check if this request targets stateful scenarios / buckets (§6.5 & Phase 6)

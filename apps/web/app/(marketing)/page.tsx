@@ -276,7 +276,7 @@ export default function LandingPage() {
             </div>
             <h4 className="text-sm font-semibold text-[var(--ink)]">Request Playground</h4>
             <p className="text-xs text-[var(--ink-2)] leading-relaxed">
-              Command-line speed in the browser. Monaco editor with schema autocomplete, method chips, Cmd+Enter
+              Command-line speed in the browser. Lazy-loaded Monaco editor with schema-aware formatting, method chips, Cmd+Enter
               sending, and Mock vs Real switcher.
             </p>
           </div>

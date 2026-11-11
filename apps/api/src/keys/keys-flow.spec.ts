@@ -328,4 +328,26 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
     const membersAfter = await workspacesService.listMembers(workspace.id, ownerUser.id);
     expect(membersAfter.length).toBe(2);
   });
+
+  it("6. Monthly Quota: blocks requests once monthlyQuota threshold is reached (§6.7 & §10)", async () => {
+    const { rawKey } = await apiKeysService.createKey(workspace.id, {
+      name: "Limited Key",
+      rateLimitPerMin: 100,
+      monthlyQuota: 3,
+    });
+
+    const v1 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v1.rateLimited).toBe(false);
+
+    const v2 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v2.rateLimited).toBe(false);
+
+    const v3 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v3.rateLimited).toBe(false);
+
+    // 4th request exceeds monthly quota of 3
+    const v4 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v4.rateLimited).toBe(true);
+    expect(v4.error).toContain("Monthly quota of 3 requests exceeded");
+  });
 });

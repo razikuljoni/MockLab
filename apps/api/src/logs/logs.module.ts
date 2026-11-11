@@ -2,8 +2,10 @@ import { Module } from "@nestjs/common";
 import { RequestLoggerService } from "./request-logger.service";
 import { LogsService } from "./logs.service";
 import { LogsController } from "./logs.controller";
+import { QueueModule } from "../queue/queue.module";
 
 @Module({
+  imports: [QueueModule],
   providers: [RequestLoggerService, LogsService],
   controllers: [LogsController],
   exports: [RequestLoggerService, LogsService],

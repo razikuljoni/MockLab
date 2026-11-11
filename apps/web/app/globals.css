@@ -41,14 +41,18 @@
 body {
   background-color: var(--surface-0);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
   font-size: 13px;
   line-height: 20px;
   -webkit-font-smoothing: antialiased;
 }
 
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: var(--font-geist), var(--font-inter), -apple-system, sans-serif;
+}
+
 code, pre, .font-mono {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 /* Method badge styles (§3.1) */

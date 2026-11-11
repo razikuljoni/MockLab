@@ -134,4 +134,93 @@ describe("SpecParserUtil", () => {
     expect(diff.conflicts.length).toBe(1);
     expect(diff.conflicts[0].operationId).toBe("GET /pets");
   });
+
+  it("handles circular $ref loops safely without stack overflow", () => {
+    const circularSpec = {
+      openapi: "3.0.0",
+      info: { title: "Circular Tree", version: "1.0.0" },
+      paths: {
+        "/tree": {
+          get: {
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: { $ref: "#/components/schemas/TreeNode" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          TreeNode: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              child: { $ref: "#/components/schemas/TreeNode" },
+            },
+          },
+        },
+      },
+    };
+
+    const { dereferenced, errors } = SpecParserUtil.dereference(circularSpec);
+    expect(dereferenced).toBeDefined();
+    // Warning emitted for the circular reference
+    const circularWarn = errors.find((e) => e.message.includes("Circular reference detected"));
+    expect(circularWarn).toBeDefined();
+    expect(circularWarn?.severity).toBe("warning");
+  });
+
+  it("handles external $ref references and non-existent refs with JSONPath error reporting", () => {
+    const externalRefSpec = {
+      openapi: "3.0.0",
+      info: { title: "External & Missing Refs", version: "1.0.0" },
+      paths: {
+        "/external": {
+          get: {
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: { $ref: "https://api.example.com/schemas/account.json" },
+                  },
+                },
+              },
+            },
+          },
+        },
+        "/missing": {
+          get: {
+            responses: {
+              "200": {
+                content: {
+                  "application/json": {
+                    schema: { $ref: "#/components/schemas/NonExistentSchema" },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const { dereferenced, errors } = SpecParserUtil.dereference(externalRefSpec);
+    expect(dereferenced).toBeDefined();
+
+    // External ref warning
+    const extErr = errors.find((e) => e.message.includes("External reference"));
+    expect(extErr).toBeDefined();
+    expect(extErr?.path).toBe("$.paths./external.get.responses.200.content.application/json.schema");
+
+    // Missing ref error
+    const missingErr = errors.find((e) => e.message.includes("Could not resolve reference"));
+    expect(missingErr).toBeDefined();
+    expect(missingErr?.severity).toBe("error");
+    expect(missingErr?.path).toBe("$.paths./missing.get.responses.200.content.application/json.schema");
+  });
 });

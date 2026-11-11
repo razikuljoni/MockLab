@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ContractRunnerService } from "./contract-runner.service";
+import { AjvSchemaValidatorService } from "./ajv-schema-validator.service";
 import { ContractDiffUtil } from "./contract-diff.util";
 import { MockAuth, Verdict, RunStatus } from "@prisma/client";
 
@@ -15,7 +16,7 @@ describe("Phase 8 Contract Tests Acceptance Suite", () => {
     dataStore = new DataStoreService(mockPrisma);
     dataStore.clear();
 
-    contractRunner = new ContractRunnerService(dataStore);
+    contractRunner = new ContractRunnerService(dataStore, new AjvSchemaValidatorService());
 
     const ws = await dataStore.createWorkspace({ name: "Contracts WS", slug: "contractsws" });
     const project = await dataStore.createProject({

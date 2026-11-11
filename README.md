@@ -152,6 +152,14 @@ Per Plan §12 and the Phase 0 spike assessment:
 
 ---
 
+## Architecture Decision: OpenAPI Dereferencer & AJV Validation
+
+Per Plan §9.3 and Plan Fidelity evaluation:
+- **OpenAPI Dereferencer**: MockLab implements a zero-external-dependency, deterministic recursive dereferencer in `SpecParserUtil`. It provides `$ref` circular loop protection (flagging `_circular: true` without stack overflow), sandboxed external reference safety warnings, and per-field JSONPath validation error reporting.
+- **AJV Schema Validation**: Uses `Ajv` for OpenAPI 3.0 (with automatic pre-transformation of `nullable: true` properties to `["type", "null"]`) and `Ajv2020` for OpenAPI 3.1. Validators are compiled once and cached by operation schema hash, mapping schema errors into human-readable field diff lines (`$.field`) with breaking/non-breaking classifications.
+
+---
+
 ## Production Deployment
 
 ### Frontend (Vercel)
