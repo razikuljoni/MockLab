@@ -222,10 +222,10 @@ export class SpecParserUtil {
       return issues;
     }
 
-    if (!spec.openapi && !spec.swagger && !spec.__schema) {
+    if (!spec.openapi && !spec.swagger) {
       issues.push({
         path: "$",
-        message: "Spec missing 'openapi' (e.g. 3.0.0, 3.1.0) or GraphQL '__schema' version",
+        message: "Spec missing 'openapi' (e.g. 3.0.0, 3.1.0) version",
         severity: "error",
       });
     }

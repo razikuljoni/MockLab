@@ -20,10 +20,10 @@ Cache/State: Redis 7 -> Upstash TCP / Managed Redis
 ### Step 1: Connect Git Repository
 1. Import the repository into your Vercel team.
 2. Select **Next.js** framework preset.
-3. Configure the Root Directory or Build Command:
-   - **Root Directory**: `.` (or select `apps/web`)
-   - **Build Command**: `pnpm --filter @mocklab/web build`
-   - **Output Directory**: `apps/web/.next`
+3. Configure the Root Directory and Build Settings:
+   - **Root Directory**: `apps/web` (the actual setting configured on the live deployment `mocklab-theta.vercel.app`, per commit `67ebe46`)
+   - **Framework Preset**: Next.js
+   - **Build Command**: default Next.js build (`next build`)
    - **Install Command**: `pnpm install`
 
 ### Step 2: Configure Environment Variables

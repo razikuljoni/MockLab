@@ -1,6 +1,6 @@
 # MockLab Architecture & System Design
 
-MockLab is a developer-first API mocking and contract-testing platform. It bridges the gap between OpenAPI/GraphQL specifications, fast local UI prototyping, and automated contract drift assertion in CI pipelines.
+MockLab is a developer-first API mocking and contract-testing platform. It bridges the gap between OpenAPI specifications, fast local UI prototyping, and automated contract drift assertion in CI pipelines.
 
 ```mermaid
 graph TD

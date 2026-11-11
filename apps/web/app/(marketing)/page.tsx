@@ -35,7 +35,7 @@ export default function LandingPage() {
       <section className="text-center space-y-6 max-w-3xl mx-auto">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-1)] text-xs text-[var(--signal)]">
           <span className="w-2 h-2 rounded-full bg-[var(--signal)] animate-pulse"></span>
-          <span className="font-medium">MockLab v0.1.0 — OpenAPI &amp; GraphQL Mocks</span>
+          <span className="font-medium">MockLab v0.1.0 — OpenAPI 3.0 &amp; 3.1 Mocks</span>
         </div>
 
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold tracking-tight text-[var(--ink)] leading-[1.1]">
@@ -44,7 +44,7 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-base sm:text-lg text-[var(--ink-2)] max-w-2xl mx-auto leading-relaxed">
-          Import an OpenAPI spec or GraphQL schema. Get a hosted mock server in seconds with stateful
+          Import an OpenAPI 3.0 or 3.1 spec. Get a hosted mock server in seconds with stateful
           buckets, latency, fault injection, and automatic breaking-change contract verification.
         </p>
 
@@ -174,7 +174,7 @@ export default function LandingPage() {
             </div>
             <h3 className="text-base font-semibold text-[var(--ink)]">1. Import Spec</h3>
             <p className="text-xs text-[var(--ink-2)] leading-relaxed">
-              Paste an OpenAPI 3.0/3.1 or GraphQL schema. Endpoints are instantly generated with schema-backed
+              Paste an OpenAPI 3.0 or 3.1 spec. Endpoints are instantly generated with schema-backed
               deterministic examples and dereferenced models.
             </p>
           </div>

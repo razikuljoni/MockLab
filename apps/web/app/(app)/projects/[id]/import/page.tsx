@@ -130,7 +130,7 @@ paths:
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div className="space-y-1 border-b border-[var(--border)] pb-4">
-        <h1 className="text-2xl font-bold text-[var(--ink)]">Import OpenAPI / GraphQL Schema</h1>
+        <h1 className="text-2xl font-bold text-[var(--ink)]">Import OpenAPI Specification</h1>
         <p className="text-xs text-[var(--ink-2)]">
           Generate live mock endpoints, stateful rules, and contract expectations from your spec
         </p>
@@ -191,7 +191,7 @@ paths:
                 className="w-full px-3 py-2 rounded-md border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
               />
               <span className="text-[11px] text-[var(--ink-3)]">
-                Accepts OpenAPI 3.0, 3.1, or GraphQL introspection endpoint.
+                Accepts OpenAPI 3.0 or 3.1 public URL (JSON or YAML).
               </span>
             </div>
           )}
@@ -208,10 +208,10 @@ paths:
                     "Drag & drop your .json or .yaml spec file, or click to browse"
                   )}
                 </span>
-                <span className="text-[10px] text-[var(--ink-3)]">Supports OpenAPI 3.0, 3.1, GraphQL SDL</span>
+                <span className="text-[10px] text-[var(--ink-3)]">Supports OpenAPI 3.0 and 3.1</span>
                 <input
                   type="file"
-                  accept=".json,.yaml,.yml,.graphql"
+                  accept=".json,.yaml,.yml"
                   onChange={handleFileUpload}
                   className="hidden"
                 />

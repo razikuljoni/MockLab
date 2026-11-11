@@ -257,12 +257,6 @@ export default function PricingPage() {
                 <td className="p-4 text-[var(--success)]">Included</td>
               </tr>
               <tr>
-                <td className="p-4 font-medium">GraphQL Schema Mocks</td>
-                <td className="p-4 text-[var(--success)]">Included</td>
-                <td className="p-4 text-[var(--success)]">Included</td>
-                <td className="p-4 text-[var(--success)]">Included</td>
-              </tr>
-              <tr>
                 <td className="p-4 font-medium">Stateful Redis Buckets</td>
                 <td className="p-4 text-[var(--success)]">Included</td>
                 <td className="p-4 text-[var(--success)]">Included</td>

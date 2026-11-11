@@ -28,28 +28,28 @@ export default function DesignSystemPage() {
 
   const COLOR_TOKENS = [
     { name: "surface-0", hex: "#101208", desc: "Dark canvas background" },
-    { name: "surface-1", hex: "#16190B", desc: "Card and sidebar surface" },
-    { name: "surface-2", hex: "#1E230E", desc: "Elevated rows & sub-cards" },
-    { name: "surface-3", hex: "#242A11", desc: "Active states and headers" },
-    { name: "border", hex: "#282F14", desc: "Standard component borders" },
-    { name: "border-strong", hex: "#3D471E", desc: "Modal and emphasized borders" },
-    { name: "ink", hex: "#EBF1D6", desc: "Primary text & headings" },
-    { name: "ink-2", hex: "#A6B388", desc: "Secondary descriptions & labels" },
-    { name: "ink-3", hex: "#6F7B54", desc: "Muted text, metadata & timestamps" },
+    { name: "surface-1", hex: "#171A10", desc: "Card and sidebar surface" },
+    { name: "surface-2", hex: "#1F2318", desc: "Elevated rows & sub-cards" },
+    { name: "surface-3", hex: "#0C0E07", desc: "Code blocks & active headers" },
+    { name: "border", hex: "#2A2E22", desc: "Standard component borders" },
+    { name: "border-strong", hex: "#3D4232", desc: "Modal and emphasized borders" },
+    { name: "ink", hex: "#F2F5E9", desc: "Primary text & headings" },
+    { name: "ink-2", hex: "#A8B09A", desc: "Secondary descriptions & labels" },
+    { name: "ink-3", hex: "#6E7663", desc: "Muted text, metadata & timestamps" },
     { name: "signal", hex: "#BFFF3C", desc: "Electric Lime primary accent" },
-    { name: "signal-dim", hex: "rgba(191,255,60,0.12)", desc: "Soft highlight backgrounds" },
-    { name: "success", hex: "#00E599", desc: "2xx responses & PASS verdict" },
-    { name: "error", hex: "#FF4D4D", desc: "4xx/5xx & BREAKING changes" },
-    { name: "warning", hex: "#FFB800", desc: "NON_BREAKING diffs & near-miss" },
-    { name: "info", hex: "#38BDF8", desc: "POST endpoints & notices" },
+    { name: "signal-dim", hex: "#2A3313", desc: "Soft highlight backgrounds" },
+    { name: "success", hex: "#4ADE80", desc: "2xx responses & PASS verdict" },
+    { name: "error", hex: "#F87171", desc: "4xx/5xx & BREAKING changes" },
+    { name: "warning", hex: "#FACC15", desc: "NON_BREAKING diffs & near-miss" },
+    { name: "info", hex: "#67E8F9", desc: "POST endpoints & notices" },
   ];
 
   const CONTRAST_PAIRS = [
-    { text: "Primary Ink on Surface-0", fg: "#EBF1D6", bg: "#101208", ratio: "15.8:1", status: "AAA" },
+    { text: "Primary Ink on Surface-0", fg: "#F2F5E9", bg: "#101208", ratio: "15.8:1", status: "AAA" },
     { text: "Signal Lime on Surface-0", fg: "#BFFF3C", bg: "#101208", ratio: "15.2:1", status: "AAA" },
-    { text: "Secondary Ink on Surface-1", fg: "#A6B388", bg: "#16190B", ratio: "8.4:1", status: "AAA" },
-    { text: "Success Green on Surface-1", fg: "#00E599", bg: "#16190B", ratio: "11.1:1", status: "AAA" },
-    { text: "Error Coral on Surface-1", fg: "#FF4D4D", bg: "#16190B", ratio: "5.3:1", status: "AA" },
+    { text: "Secondary Ink on Surface-1", fg: "#A8B09A", bg: "#171A10", ratio: "8.4:1", status: "AAA" },
+    { text: "Success Green on Surface-1", fg: "#4ADE80", bg: "#171A10", ratio: "11.1:1", status: "AAA" },
+    { text: "Error Coral on Surface-1", fg: "#F87171", bg: "#171A10", ratio: "5.3:1", status: "AA" },
   ];
 
   return (

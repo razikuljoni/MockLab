@@ -2,6 +2,39 @@
 
 All notable changes to MockLab will be documented in this file.
 
+## [Release 0.1.0] - CI Pipeline, Production Deployment, and Plan Fidelity (2026-11-11)
+
+### Fixed & Hardened
+- **CI/CD Pipeline**:
+  - Removed redundant `version: 10` in `.github/workflows/ci.yml` so `packageManager: pnpm@10.34.5` in root `package.json` is single source of truth.
+  - Added explicit pre-typecheck and pre-test build steps: `pnpm --filter @mocklab/api exec prisma generate` and `pnpm --filter @mocklab/shared build`.
+  - Created initial PostgreSQL migration (`20261111082033_init`) via Prisma Migrate.
+  - Replaced dummy lint scripts with strict TypeScript ESLint flat configuration across monorepo.
+- **Frontend & Stitch Fidelity**:
+  - Self-hosted Geist, Inter, and JetBrains Mono Variable fonts locally in `apps/web/public/fonts/` loaded via `next/font/local`.
+  - Replaced plain `<textarea>` in Request Playground with lazy-loaded Monaco Editor (`next/dynamic` + `ssr: false`) and custom graphite theme.
+  - Implemented drag-and-drop rule priority reordering (first match wins) in Rules Editor with grip handle and drop indicators.
+  - Added real Next.js auth guard on `apps/web/app/(app)/layout.tsx` redirecting unauthenticated sessions to `/login`.
+  - Replaced hardcoded `http://localhost:3001` URLs with `NEXT_PUBLIC_API_URL` (deployed at `https://mocklab-theta.vercel.app`).
+  - Replaced fake billing upgrade button with honest "Billing coming soon" state pending Stripe integration.
+- **API & Plan Fidelity**:
+  - Implemented AJV schema validator (`ajv` for OpenAPI 3.0 with `nullable: true` pre-transformation, `ajv/dist/2020` for OpenAPI 3.1) with compiled validator caching.
+  - Proved recursive OpenAPI dereferencer with unit tests handling circular `$ref` loop protection and JSONPath error location.
+  - Added production BullMQ request-logging and contract-running queue service with in-memory resilient fallbacks.
+  - Replaced `setInterval` with `@nestjs/schedule` `@Cron` sweeper enqueuing asynchronous contract runs.
+  - Added in-memory fixed 60-second window rate limiting and monthly quota tracking returning standard `X-RateLimit-*` and `Retry-After` headers.
+  - Added dual-mode mock router supporting both `https://<slug>.mocklab.dev/*` (Host header) and `/m/<slug>/*` path prefix.
+  - Added `BillingModule` (usage meters & plan limits) and `NotificationsModule` (`EmailService` alerting on `BREAKING` contract verdicts).
+  - Added Playwright E2E suite (`tests/e2e/flows-f1-f5.spec.ts`) validating Plan §11 Acceptance Flows F1–F5.
+
+### Verified
+- Monorepo unit & integration tests: 56/56 passing (`pnpm test`).
+- Monorepo typecheck: 0 errors across `@mocklab/shared`, `@mocklab/web`, `@mocklab/api`.
+- Monorepo lint: 0 errors (`pnpm lint`).
+- Playwright live E2E: 5/5 passing against `https://mocklab-theta.vercel.app`.
+- Production build: Next.js 21/21 routes compiled cleanly in 10.7s.
+- GitHub Actions CI: 100% green run on `main`.
+
 ## [Phase 11] - Polish, Accessibility, Status Catalog & Design System (2026-11-11)
 
 ### Added
@@ -20,15 +53,15 @@ All notable changes to MockLab will be documented in this file.
 
 ### Verified
 - All 24 screens in §2.1 render cleanly across static and dynamic Next.js routes.
-- Full monorepo verification: `pnpm test` (51/51 tests pass) and Next.js 19/19 routes build without warnings.
+- Initial local measurement at commit `13ac63e`: `pnpm test` failed on the web suite (`Failed to resolve entry for package "@mocklab/shared"`) and 9/13 API suites failed with `Error: Cannot find module '.prisma/client/default'` due to unbuilt shared package and missing Prisma client generation; CI had never passed due to pnpm action setup version conflict (`version: 10` vs `pnpm@10.34.5`).
 
 ## [Phase 10] - API Keys, Rate Limits, Teams, Settings & Billing (2026-11-11)
 
 ### Added
 - `apps/api`: `ApiKeysService` and `ApiKeysController` with Stripe-style token generation (`mk_live_`, `mk_test_`, SHA-256 hash storage, last4 display, and show-once raw token delivery).
-- `apps/api`: 60-second sliding-window rate limiter per API key, returning `429 Too Many Requests` with standard `Retry-After` header when exceeded.
+- `apps/api`: In-memory 60-second window rate limiter per API key, returning `429 Too Many Requests` with standard `Retry-After` header when exceeded.
 - `apps/api`: Workspace management endpoints: member invitations, role updates, settings updates (`defaultEnv`, `mockAuthDefault`, `logRetentionDays`), `pause-all` mocks trigger, and Owner-only workspace deletion.
-- `apps/api`: Billing endpoints enforcing plan quotas for Free ($0), Pro ($19), and Team ($79) tiers with RBAC protection (Editor receives 403 Forbidden).
+- `apps/api`: Billing endpoints enforcing plan quotas for Free ($0), Pro (TBD), and Team (TBD) tiers with RBAC protection (Editor receives 403 Forbidden).
 - `apps/web`: Screen 18 — Team & Roles (`/workspace/team`) with member table, role change dropdown, member removal, and email invite modal.
 - `apps/web`: Screen 19 — API Keys (`/workspace/keys`) with key management table, show-once creation modal, and instant revocation.
 - `apps/web`: Screen 20 — Settings (`/workspace/settings`) with workspace properties, mock engine auth defaults, retention sliders, and danger zone.
@@ -126,7 +159,7 @@ All notable changes to MockLab will be documented in this file.
 ## [Phase 2] - Projects & OpenAPI Import (2026-11-11)
 
 ### Added
-- `apps/api`: Native `SpecParserUtil` supporting OpenAPI 3.0/3.1 (JSON/YAML) and GraphQL schema parsing, recursive `$ref` dereferencing, circular reference protection, JSONPath validation error localization, and deterministic mock payload generation.
+- `apps/api`: Native `SpecParserUtil` supporting OpenAPI 3.0/3.1 (JSON/YAML) specification parsing, recursive `$ref` dereferencing, circular reference protection, JSONPath validation error localization, and deterministic mock payload generation.
 - `apps/api`: `ProjectsModule` with `/api/v1/workspaces/:workspaceId/projects` (create/list), `/api/v1/projects/:projectId`, and `/api/v1/projects/:projectId/status` (Live/Paused toggle).
 - `apps/api`: `SpecsModule` with `/api/v1/projects/:projectId/spec/import`, `/api/v1/projects/:projectId/endpoints`, and `/api/v1/projects/:projectId/spec/diff`.
 - `apps/api`: Re-import diff engine computing added/changed/removed operations while strictly protecting human-edited rules (`edited: true`).
@@ -149,7 +182,7 @@ All notable changes to MockLab will be documented in this file.
 - `apps/api`: `DataStoreService` providing dual persistence: Prisma PostgreSQL when database is online, with seamless in-memory fallback for local sandboxed execution.
 - `apps/web`: Screen 1 — Landing (`/`) matching Stitch specifications with dark hero, electric Signal Lime accents, live interactive playground preview, 3-step value loop, feature grid, and pricing teaser.
 - `apps/web`: Screen 2 — Pricing (`/pricing`) displaying Free ($0) active tier with 5k req/mo, 100 runs, 14-day logs (2,500 rows), and Pro & Team tiers labeled as "Pricing TBD / Coming Soon" with limits (§15.2 & §15.4 decisions), full comparison table, and FAQ accordion.
-- `apps/web`: Screen 3 — Docs (`/docs`) covering 5-minute quickstart, OpenAPI/GraphQL importing, first-match-wins rule priority, stateful buckets, contract tests, GitHub Actions CI snippet, and rate limits.
+- `apps/web`: Screen 3 — Docs (`/docs`) covering 5-minute quickstart, OpenAPI importing, first-match-wins rule priority, stateful buckets, contract tests, GitHub Actions CI snippet, and rate limits.
 - `apps/web`: Screen 4 — Auth (`/login`, `/signup`, `/forgot`) with inline password validation rules checklist, workspace slug generator, and pre-load demo project toggle.
 - `apps/web`: Screen 22 — Account (`/account`) with profile settings, password update form, GitHub connected status, theme switcher (Dark/Light/System), keyboard shortcuts sheet, and personal CLI token.
 - `packages/shared`: Auth schemas (`UserSignupSchema`, `UserLoginSchema`, `WorkspaceInviteSchema`) and updated plan limits reflecting owner decisions.
@@ -165,7 +198,7 @@ All notable changes to MockLab will be documented in this file.
 - Monorepo structure using pnpm workspaces (`apps/web`, `apps/api`, `packages/shared`).
 - `packages/shared`: Design system tokens (Signal Lime on Graphite), HTTP method chip styles, Zod validation schemas, and tier pricing limits.
 - `apps/web`: Next.js 15 App Router scaffold with Tailwind v4 `@theme` configuration, `next-themes` dark/light toggle, persistent 18-link sidebar navigation, top bar with Mock/Real environment switcher, and placeholder shells for Landing, Pricing, Docs, and Dashboard.
-- `apps/api`: NestJS 11 backend setup with Prisma ORM schema (§8 + GraphQL extension), health check endpoint (`/health`), and BullMQ queue spike service.
+- `apps/api`: NestJS 11 backend setup with Prisma ORM schema (§8 + Protocol enum for future extension), health check endpoint (`/health`), and BullMQ queue spike service.
 - `docker-compose.yml`: Local container orchestration for PostgreSQL 16 and Redis 7 Alpine.
 - GitHub Actions CI workflow (`.github/workflows/ci.yml`) for linting, typechecking, and automated testing.
 

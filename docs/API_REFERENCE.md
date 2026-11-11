@@ -75,7 +75,7 @@ Creates a new project.
 ```
 
 ### `POST /api/v1/projects/:id/spec/import`
-Parses and imports OpenAPI 3.0/3.1 (JSON/YAML) or GraphQL schema.
+Parses and imports OpenAPI 3.0/3.1 (JSON/YAML) specifications.
 ```json
 {
   "sourceUrl": "https://petstore.swagger.io/v2/swagger.json",
@@ -116,7 +116,7 @@ Triggers external contract test execution against real provider.
 ### `GET /api/v1/projects/:id/badge`
 Returns a dynamic SVG status badge suitable for READMEs:
 ```markdown
-![MockLab Contract](https://api.mocklab.dev/api/v1/projects/petstore/badge)
+![MockLab Contract](https://<api-host>/api/v1/projects/:projectId/badge)
 ```
 
 ---

@@ -289,7 +289,7 @@ export default function ProjectsPage() {
 
               <div className="p-3 rounded-md border border-[var(--border)] bg-[var(--surface-0)] space-y-1 text-[11px] text-[var(--ink-3)]">
                 <div>Mock Auth: <strong>Private (Default)</strong> — Requires X-MockLab-Key</div>
-                <div>Protocol: <strong>REST &amp; GraphQL</strong> supported</div>
+                <div>Protocol: <strong>REST (OpenAPI 3.0 / 3.1)</strong> supported</div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-2">
