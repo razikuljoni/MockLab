@@ -1,0 +1,34 @@
+name: Bug Report
+description: Report an issue or unexpected behavior in MockLab
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting an issue! Please provide sufficient detail to reproduce the bug.
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: 1. Go to '...'\n2. Click on '...'\n3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Info
+      description: Browser, Node.js version, OS, pnpm version.

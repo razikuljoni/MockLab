@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   validate:
     name: Lint, Typecheck & Test
@@ -75,3 +79,12 @@ jobs:
         env:
           DATABASE_URL: "postgresql://mocklab:${{ secrets.POSTGRES_PASSWORD || github.run_id }}@localhost:5432/mocklab?schema=public"
         run: pnpm build
+
+      - name: Check for Changeset
+        if: github.event_name == 'pull_request'
+        run: |
+          if [ -z "$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null)" ]; then
+            echo "::warning::No changeset found in this pull request. Consider adding one with 'pnpm changeset' or 'pnpm changeset:auto'."
+          else
+            echo "Changeset detected for release."
+          fi

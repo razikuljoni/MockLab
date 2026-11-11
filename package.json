@@ -11,10 +11,17 @@
     "test": "pnpm --recursive test",
     "test:e2e": "playwright test",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "changeset": "changeset",
+    "changeset:auto": "node scripts/generate-changeset.mjs",
+    "version-packages": "changeset version && node scripts/update-root-changelog.mjs",
+    "audit": "pnpm audit --audit-level=high",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.65.0",
     "eslint": "^10.14.0",
