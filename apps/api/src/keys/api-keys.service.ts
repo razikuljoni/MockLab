@@ -16,6 +16,8 @@ export class ApiKeysService {
 
   // In-memory sliding window rate-limit tracker: keyId -> { windowStart, count }
   private rateLimitWindows = new Map<string, { windowStart: number; count: number }>();
+  // Monthly quota tracker: keyId:YYYY-MM -> count
+  private monthlyQuotaUsage = new Map<string, number>();
 
   constructor(private readonly dataStore: DataStoreService) {}
 
@@ -94,6 +96,23 @@ export class ApiKeysService {
 
     if (key.revokedAt !== null) {
       return { valid: false, rateLimited: false, error: "API key has been revoked" };
+    }
+
+    // Monthly Quota Enforcement (§6.7, §9.3 & §10)
+    const monthKey = `${key.id}:${new Date().getUTCFullYear()}-${new Date().getUTCMonth() + 1}`;
+    const currentMonthly = (this.monthlyQuotaUsage.get(monthKey) || 0) + 1;
+    this.monthlyQuotaUsage.set(monthKey, currentMonthly);
+
+    if (key.monthlyQuota && key.monthlyQuota > 0 && currentMonthly > key.monthlyQuota) {
+      return {
+        valid: true,
+        rateLimited: true,
+        key,
+        limit: key.rateLimitPerMin,
+        remaining: 0,
+        resetSec: 3600,
+        error: `Monthly quota of ${key.monthlyQuota} requests exceeded for this API key`,
+      };
     }
 
     // Rate Limiting (Sliding Window 60s)

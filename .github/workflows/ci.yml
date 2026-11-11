@@ -68,6 +68,9 @@ jobs:
           REDIS_URL: "redis://localhost:6379"
         run: pnpm test
 
+      - name: Run E2E Tests (Flows F1-F5)
+        run: pnpm test:e2e
+
       - name: Build Monorepo (Next.js & NestJS)
         env:
           DATABASE_URL: "postgresql://mocklab:${{ secrets.POSTGRES_PASSWORD || github.run_id }}@localhost:5432/mocklab?schema=public"

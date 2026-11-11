@@ -13,6 +13,8 @@ import { LogsModule } from "./logs/logs.module";
 import { ContractsModule } from "./contracts/contracts.module";
 import { CiModule } from "./ci/ci.module";
 import { ApiKeysModule } from "./keys/api-keys.module";
+import { BillingModule } from "./billing/billing.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { ApiKeysModule } from "./keys/api-keys.module";
     ContractsModule,
     CiModule,
     ApiKeysModule,
+    BillingModule,
+    NotificationsModule,
   ],
 })
 export class AppModule {}

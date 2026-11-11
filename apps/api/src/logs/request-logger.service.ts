@@ -1,5 +1,6 @@
-import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy, Optional } from "@nestjs/common";
 import { DataStoreService, RequestLogRecord } from "../prisma/data-store.service";
+import { ProductionQueueService } from "../queue/production-queue.service";
 
 export interface EnqueueLogPayload {
   projectId: string;
@@ -26,9 +27,34 @@ export class RequestLoggerService implements OnModuleInit, OnModuleDestroy {
   private readonly BATCH_SIZE = 500;
   private readonly FLUSH_INTERVAL_MS = 5000;
 
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    private readonly dataStore: DataStoreService,
+    @Optional() private readonly queueService?: ProductionQueueService
+  ) {}
 
   onModuleInit() {
+    if (this.queueService) {
+      this.queueService.registerLogBatchProcessor(async (logs) => {
+        const mapped = logs.map((l) => ({
+          projectId: l.projectId,
+          method: l.method.toUpperCase(),
+          path: l.path,
+          status: l.status,
+          matchedRuleId: l.matchedRuleId || null,
+          nearMiss: l.nearMiss || null,
+          latencyMs: l.latencyMs,
+          injectedMs: l.injectedMs || 0,
+          requestSize: l.requestBody ? JSON.stringify(l.requestBody).length : 0,
+          responseSize: l.responseBody ? JSON.stringify(l.responseBody).length : 0,
+          requestHeaders: this.redactHeaders(l.requestHeaders),
+          requestBody: this.sanitizeBody(l.path, l.requestBody),
+          responseHeaders: this.redactHeaders(l.responseHeaders),
+          responseBody: this.capBody(l.responseBody),
+        }));
+        await this.dataStore.createRequestLogsBatch(mapped);
+      });
+    }
+
     this.flushTimer = setInterval(() => {
       this.flush().catch((err) => this.logger.error(`Error in periodic log flush: ${err.message}`));
     }, this.FLUSH_INTERVAL_MS);
@@ -71,7 +97,13 @@ export class RequestLoggerService implements OnModuleInit, OnModuleDestroy {
       responseBody: sanitizedResBody,
     };
 
-    this.buffer.push(entry);
+    if (this.queueService) {
+      this.queueService.enqueueLog(payload).catch((err) =>
+        this.logger.warn(`Failed to enqueue log via queueService: ${err.message}`)
+      );
+    } else {
+      this.buffer.push(entry);
+    }
 
     if (this.buffer.length >= this.BATCH_SIZE) {
       // Async flush without blocking caller

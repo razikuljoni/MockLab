@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ContractRunnerService } from "../contracts/contract-runner.service";
+import { AjvSchemaValidatorService } from "../contracts/ajv-schema-validator.service";
 import { CiSchedulerService } from "./ci-scheduler.service";
 import { CiController } from "./ci.controller";
 import { MockAuth, RunStatus, Verdict } from "@prisma/client";
@@ -55,7 +56,7 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
     dataStore = new DataStoreService(mockPrisma);
     dataStore.clear();
 
-    contractRunner = new ContractRunnerService(dataStore);
+    contractRunner = new ContractRunnerService(dataStore, new AjvSchemaValidatorService());
     ciScheduler = new CiSchedulerService(dataStore, contractRunner);
     ciController = new CiController(contractRunner, ciScheduler, dataStore);
 

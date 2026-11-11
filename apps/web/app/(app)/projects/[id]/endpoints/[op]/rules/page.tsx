@@ -95,7 +95,32 @@ export default function RulesEditorPage() {
   const [testHeader, setTestHeader] = useState("true");
   const [testResult, setTestResult] = useState<{ matched: boolean; reason: string } | null>(null);
 
-  // Drag-reorder helper (simulated with up/down arrows)
+  // HTML5 Drag-and-drop state (§6.3 first match wins)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const handleDrop = (targetIndex: number) => {
+    if (draggedIndex === null || draggedIndex === targetIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const copy = [...rules];
+    const [draggedItem] = copy.splice(draggedIndex, 1);
+    copy.splice(targetIndex, 0, draggedItem);
+
+    // re-assign priorities strictly by new visual order
+    copy.forEach((r, idx) => {
+      r.priority = idx + 1;
+    });
+
+    setRules(copy);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Keyboard accessibility helper
   const moveRule = (index: number, direction: "up" | "down") => {
     const targetIdx = direction === "up" ? index - 1 : index + 1;
     if (targetIdx < 0 || targetIdx >= rules.length) return;
@@ -207,15 +232,45 @@ export default function RulesEditorPage() {
             {rules.map((rule, idx) => (
               <div
                 key={rule.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("text/plain", String(idx));
+                  setDraggedIndex(idx);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverIndex(idx);
+                }}
+                onDragLeave={() => {
+                  if (dragOverIndex === idx) setDragOverIndex(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(idx);
+                }}
+                onDragEnd={() => {
+                  setDraggedIndex(null);
+                  setDragOverIndex(null);
+                }}
                 onClick={() => setSelectedRuleId(rule.id)}
                 className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                  selectedRuleId === rule.id
+                  draggedIndex === idx
+                    ? "opacity-40 border-dashed border-[var(--signal)]"
+                    : dragOverIndex === idx
+                    ? "border-[var(--signal)] ring-2 ring-[var(--signal)]/30 bg-[var(--signal-dim)]"
+                    : selectedRuleId === rule.id
                     ? "border-[var(--signal)] bg-[var(--signal-dim)]"
                     : "border-[var(--border)] bg-[var(--surface-0)] hover:border-[var(--border-strong)]"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5">
+                    <div
+                      className="cursor-grab active:cursor-grabbing text-[var(--ink-3)] hover:text-[var(--signal)] mt-0.5"
+                      title="Drag to reorder priority"
+                    >
+                      <GripVertical className="w-4 h-4" />
+                    </div>
                     <span className="w-5 h-5 rounded bg-[var(--surface-2)] flex items-center justify-center font-mono font-bold text-xs text-[var(--signal)] shrink-0">
                       {rule.priority}
                     </span>

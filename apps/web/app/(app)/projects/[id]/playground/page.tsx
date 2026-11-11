@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
+import { MonacoEditor } from "../../../../../components/monaco-editor";
 import {
   Send,
   Terminal,
@@ -568,11 +569,15 @@ export default function PlaygroundPage() {
                       Prettify JSON
                     </button>
                   </div>
-                  <textarea
-                    value={bodyContent}
-                    onChange={(e) => setBodyContent(e.target.value)}
-                    className="flex-1 w-full p-3 rounded-md border border-[var(--border)] bg-[var(--surface-3)] font-mono text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--signal)] resize-none"
-                  />
+                  <div className="flex-1 w-full min-h-[180px]">
+                    <MonacoEditor
+                      value={bodyContent}
+                      onChange={setBodyContent}
+                      language="json"
+                      height="200px"
+                      minHeight="180px"
+                    />
+                  </div>
                 </div>
               )}
 

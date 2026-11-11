@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { DataStoreService, ExpectationRecord, ContractRunRecord } from "../prisma/data-store.service";
 import { ContractDiffUtil, DiffReport } from "./contract-diff.util";
+import { AjvSchemaValidatorService } from "./ajv-schema-validator.service";
 import { CryptoUtil } from "../auth/crypto.util";
 import { Verdict, RunStatus } from "@prisma/client";
 
@@ -15,7 +16,10 @@ export class ContractRunnerService {
   private readonly logger = new Logger(ContractRunnerService.name);
   private readonly encryptionKey = process.env.ENCRYPTION_KEY || "01234567890123456789012345678901";
 
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    private readonly dataStore: DataStoreService,
+    private readonly ajvValidator: AjvSchemaValidatorService
+  ) {}
 
   /**
    * Executes contract test suite for a project against both Mock and Real Provider.
@@ -85,6 +89,24 @@ export class ContractRunnerService {
           realResult.body,
           exp.expectedSchema
         );
+
+        // AJV Schema validation against OpenAPI 3.0 / 3.1 definitions (§9.3)
+        if (exp.expectedSchema && realResult.body) {
+          const ajvErrors = this.ajvValidator.validatePayload(
+            `${projectId}:${exp.id}:${specHash}`,
+            exp.expectedSchema,
+            realResult.body
+          );
+          if (ajvErrors.length > 0) {
+            diffReport.lines.push(...ajvErrors);
+            diffReport.summary.total += ajvErrors.length;
+            diffReport.summary.changed += ajvErrors.length;
+            if (ajvErrors.some((l) => l.breaking)) {
+              diffReport.verdict = Verdict.BREAKING;
+            }
+          }
+        }
+
         verdict = diffReport.verdict;
       }
 
