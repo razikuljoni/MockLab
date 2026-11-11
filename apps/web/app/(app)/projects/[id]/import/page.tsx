@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getApiBaseUrl } from "../../../../../lib/api";
 import {
   UploadCloud,
   Link2,
@@ -70,9 +71,16 @@ paths:
     }
 
     try {
-      const res = await fetch(`http://localhost:3001/api/v1/projects/${projectId}/spec/import`, {
+      const apiBase = getApiBaseUrl();
+      const token = typeof window !== "undefined" ? localStorage.getItem("mocklab_token") : null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${apiBase}/api/v1/projects/${projectId}/spec/import`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           rawSpec: specContent,
           sourceUrl: activeTab === "url" ? specUrl : undefined,

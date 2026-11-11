@@ -140,6 +140,37 @@ Add this step to your GitHub Actions workflow:
 
 ---
 
+## Phase 0 Architecture Decision: Upstash vs Managed Redis
+
+Per Plan §12 and the Phase 0 spike assessment:
+- **Requirement Analysis**: BullMQ queues, sliding-window rate limiting (`@nestjs/throttler`), and stateful scenario buckets require persistent TCP sockets, Lua script evaluation (`EVALSHA`), and atomic blocking stream operations (`XREADGROUP`, `BRPOPLPUSH`).
+- **Upstash Compatibility**: While Upstash offers a Serverless Redis HTTP/REST API, BullMQ and ioredis persistent connection pooling fail over HTTP without custom polling bridges. Upstash's native TCP endpoint supports the Redis protocol, but free-tier quotas (10,000 commands/day) are depleted rapidly by background queue polling heartbeats.
+- **Architectural Decision**:
+  1. **Local & CI**: Use containerized standard Redis 7 (`redis:7-alpine`) via Docker Compose or GitHub Actions service containers.
+  2. **Production Free Tier**: Use managed TCP Redis (e.g. Render Redis, Railway Redis, or Dragonfly) with SSL (`rediss://`).
+  3. **Resilient In-Memory Fallback**: When `REDIS_URL` is omitted, `MockStateService` and `QueueSpikeService` gracefully fall back to thread-safe in-memory maps, allowing full local and preview testing with zero external services required.
+
+---
+
+## Production Deployment
+
+### Frontend (Vercel)
+The web application is deployed on Vercel at [mocklab-theta.vercel.app](https://mocklab-theta.vercel.app).
+Set `NEXT_PUBLIC_API_URL` in your Vercel project environment variables to your deployed backend API URL (e.g. `https://mocklab-api.onrender.com`).
+
+### Backend API (Render Free Tier)
+Deploy `apps/api` using the included `render.yaml` Blueprint or `Dockerfile`:
+1. Connect `razikuljoni/MockLab` in Render Dashboard.
+2. Select **New > Blueprint** and select `render.yaml`.
+3. Configure the following environment variables:
+   - `DATABASE_URL`: Connection string from free-tier PostgreSQL (Neon or Supabase).
+   - `REDIS_URL`: Connection string from TCP Redis.
+   - `JWT_SECRET`: Random 64-hex string (`openssl rand -hex 32`).
+   - `SECRET_ENCRYPTION_KEY`: Random 64-hex string (`openssl rand -hex 32`).
+   - `NEXT_PUBLIC_APP_URL`: `https://mocklab-theta.vercel.app`.
+
+---
+
 ## Documentation & References
 
 - [Architecture & Subsystem Design](docs/ARCHITECTURE.md)

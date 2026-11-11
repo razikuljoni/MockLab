@@ -128,9 +128,9 @@ export default function WorkspaceBillingPage() {
   const [upgradedAlert, setUpgradedAlert] = useState<string | null>(null);
 
   const handleSelectPlan = (tierId: "FREE" | "PRO" | "TEAM") => {
-    setActivePlan(tierId);
-    setUpgradedAlert(`Successfully switched to ${tierId} plan`);
-    setTimeout(() => setUpgradedAlert(null), 3000);
+    if (tierId === "FREE") return;
+    setUpgradedAlert(`Self-serve ${tierId} plan upgrade is coming soon. MockLab is free during early preview.`);
+    setTimeout(() => setUpgradedAlert(null), 5000);
   };
 
   return (
@@ -331,10 +331,10 @@ export default function WorkspaceBillingPage() {
                   className={`w-full py-2.5 rounded-xl font-medium text-xs transition-all cursor-pointer ${
                     isCurrent
                       ? "bg-[var(--surface-2)] text-[var(--ink-3)] border border-[var(--border)] cursor-default"
-                      : "bg-[var(--signal)] text-[var(--surface-0)] hover:opacity-90 font-semibold"
+                      : "bg-[var(--surface-2)] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--border)] hover:border-[var(--signal)] font-medium"
                   }`}
                 >
-                  {isCurrent ? "Current Plan" : `Switch to ${tier.name}`}
+                  {isCurrent ? "Current Plan" : "Upgrade (Coming Soon)"}
                 </button>
               </div>
             );
@@ -349,7 +349,7 @@ export default function WorkspaceBillingPage() {
             <Receipt className="w-4 h-4 text-[var(--signal)]" />
             <h2 className="text-sm font-semibold text-[var(--ink)]">Invoices & Statements</h2>
           </div>
-          <span className="text-xs text-[var(--ink-3)] font-mono">Billed to: Visa ending in 4242</span>
+          <span className="text-xs text-[var(--ink-3)] font-mono">Billed to: Free Developer Preview (No card required)</span>
         </div>
 
         <div className="overflow-x-auto">
