@@ -2,6 +2,36 @@
 
 All notable changes to MockLab will be documented in this file.
 
+## [Release 0.2.0] - (2026-11-11)
+
+### @mocklab/web
+
+### Minor Changes
+
+- [#6](https://github.com/razikuljoni/MockLab/pull/6) [`1480a0f`](https://github.com/razikuljoni/MockLab/commit/1480a0fb952c73fa3480bb54b9acc7ba34234e95) Thanks [@razikuljoni](https://github.com/razikuljoni)! - feat(ci): production-grade CI/CD pipelines, automated versioning with Changesets, and auto-generated changelogs
+
+### Patch Changes
+
+- Updated dependencies [[`1480a0f`](https://github.com/razikuljoni/MockLab/commit/1480a0fb952c73fa3480bb54b9acc7ba34234e95)]:
+  - @mocklab/shared@0.2.0
+
+### @mocklab/api
+
+### Minor Changes
+
+- [#6](https://github.com/razikuljoni/MockLab/pull/6) [`1480a0f`](https://github.com/razikuljoni/MockLab/commit/1480a0fb952c73fa3480bb54b9acc7ba34234e95) Thanks [@razikuljoni](https://github.com/razikuljoni)! - feat(ci): production-grade CI/CD pipelines, automated versioning with Changesets, and auto-generated changelogs
+
+### Patch Changes
+
+- Updated dependencies [[`1480a0f`](https://github.com/razikuljoni/MockLab/commit/1480a0fb952c73fa3480bb54b9acc7ba34234e95)]:
+  - @mocklab/shared@0.2.0
+
+### @mocklab/shared
+
+### Minor Changes
+
+- [#6](https://github.com/razikuljoni/MockLab/pull/6) [`1480a0f`](https://github.com/razikuljoni/MockLab/commit/1480a0fb952c73fa3480bb54b9acc7ba34234e95) Thanks [@razikuljoni](https://github.com/razikuljoni)! - feat(ci): production-grade CI/CD pipelines, automated versioning with Changesets, and auto-generated changelogs
+
 ## [Release 0.1.0] - CI Pipeline, Production Deployment, and Plan Fidelity (2026-11-11)
 
 ### Fixed & Hardened
