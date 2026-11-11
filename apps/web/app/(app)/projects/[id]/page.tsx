@@ -181,7 +181,7 @@ export default function ProjectOverviewPage() {
           </div>
           <div>
             <span className="font-semibold text-[var(--ink)] block">Import Spec</span>
-            <span className="text-[11px] text-[var(--ink-3)]">OpenAPI / GraphQL</span>
+            <span className="text-[11px] text-[var(--ink-3)]">OpenAPI 3.0 / 3.1</span>
           </div>
         </Link>
 

@@ -100,10 +100,10 @@ jobs:
       <section id="importing" className="space-y-4">
         <h2 className="text-xl font-bold text-[var(--ink)] flex items-center gap-2">
           <Layers className="w-5 h-5 text-[var(--signal)]" />
-          <span>2. Importing OpenAPI &amp; GraphQL Specs</span>
+          <span>2. Importing OpenAPI Specs</span>
         </h2>
         <p className="text-xs text-[var(--ink-2)] leading-relaxed">
-          MockLab accepts OpenAPI 3.0, 3.1 (JSON or YAML) and GraphQL schemas via public URL, file upload,
+          MockLab accepts OpenAPI 3.0 and 3.1 specifications (JSON or YAML) via public URL, file upload,
           or pasted text.
         </p>
 
@@ -111,8 +111,8 @@ jobs:
           <h3 className="font-semibold text-[var(--ink)]">Resolution &amp; Dereferencing</h3>
           <p className="text-[var(--ink-2)]">
             All internal <code className="text-[var(--signal)]">$ref</code> pointers are recursively dereferenced using
-            <code className="text-[var(--ink)]"> @readme/openapi-parser</code>. Validation errors are reported with exact
-            JSONPath locations (e.g. <code className="text-[var(--danger)]">$.paths['/pets'].get.responses['200']</code>).
+            MockLab&apos;s deterministic parser with circular loop protection. Validation errors are reported with exact
+            JSONPath locations (e.g. <code className="text-[var(--danger)]">$.paths[&apos;/pets&apos;].get.responses[&apos;200&apos;]</code>).
           </p>
           <div className="p-3 rounded bg-[var(--surface-2)] text-[11px] text-[var(--ink-3)]">
             Note: On re-importing a changed spec, MockLab shows a diff preview. Hand-edited rules are preserved and flagged

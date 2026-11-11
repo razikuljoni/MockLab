@@ -4,17 +4,20 @@
 
 MockLab is a high-performance, developer-first API mocking and contract-testing platform. It enables frontend and backend teams to decouple development, simulate real-world network edge cases, manage stateful scenarios, and verify API contract compatibility automatically in continuous integration.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-mocklab--theta.vercel.app-BFFF3C?style=flat&logo=vercel&logoColor=black)](https://mocklab-theta.vercel.app)
 [![CI](https://github.com/razikuljoni/MockLab/actions/workflows/ci.yml/badge.svg)](https://github.com/razikuljoni/MockLab/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript: 5.8](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js: 15](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
 [![NestJS: 11](https://img.shields.io/badge/NestJS-11-red.svg)](https://nestjs.com/)
 
+🌐 **Live Application**: [https://mocklab-theta.vercel.app](https://mocklab-theta.vercel.app)
+
 ---
 
 ## Key Highlights
 
-- **OpenAPI 3.0 / 3.1 & GraphQL Spec Import**: Instant mock generation with recursive `$ref` resolution, circular reference protection, and JSONPath error highlighting.
+- **OpenAPI 3.0 / 3.1 Spec Import**: Instant mock generation with recursive `$ref` resolution, circular reference protection, and JSONPath error highlighting.
 - **Dynamic Catch-All Mock Router (`/m/:slug/*`)**: Priority-ordered matching clauses (headers, params, JSONPath body) with Handlebars templating (`{{uuid}}`, `{{body.name}}`, `{{now}}`).
 - **WireMock-Style Near-Miss Diagnostics**: Unmatched requests return an actionable `404 Not Found` report naming the closest candidate rule and the exact missed clause.
 - **Stateful Scenarios & Buckets**: In-memory and Redis-backed state machine engines supporting CRUD operations on collection buckets with isolated scenario keys.
@@ -22,18 +25,18 @@ MockLab is a high-performance, developer-first API mocking and contract-testing 
 - **Traffic Inspector**: Non-blocking asynchronous batch queue with sensitive auth header redaction, 100 KB payload safety cap, and 1-click "Create rule from request".
 - **Contract Drift Verification**: Deep structural JSON diffing with strict `PASS`, `BREAKING`, `NON_BREAKING`, and `ERROR` classification and live provider verification.
 - **Automated CI Integration**: Copyable GitHub Actions YAML, exit-code pipeline gates, scheduled automated sweeps, and dynamic SVG badges.
-- **Multi-Tenant RBAC & Security**: Stripe-style API tokens (`mk_live_`, `mk_test_`), 60-second sliding-window rate limiting, and Owner/Admin/Editor/Viewer role matrix.
+- **Multi-Tenant RBAC & Security**: Stripe-style API tokens (`mk_live_`, `mk_test_`), in-memory fixed 60-second window rate limiting (`Map<string, { windowStart, count }>`) per API key or client IP with monthly quota tracking, and Owner/Admin/Editor/Viewer role matrix.
 
 ---
 
 ## 24-Screen Application Map
 
-Every screen in MockLab is built to the Stitch visual reference using the dark-mode token system (`#101208` Canvas, `#16190B` Surface, `#282F14` Border, `#BFFF3C` Electric Lime):
+Every screen in MockLab is built to the Stitch visual reference using the dark-mode token system (`#101208` Canvas, `#171A10` Surface, `#2A2E22` Border, `#BFFF3C` Electric Lime):
 
 | # | Screen Name | Route | Purpose |
 |---|---|---|---|
 | 1 | **Landing Page** | `/` | Hero section, interactive terminal demo, feature breakdown, CTA |
-| 2 | **Pricing** | `/pricing` | Free (\$0), Pro (\$19), and Team (\$79) tiers with feature matrices |
+| 2 | **Pricing** | `/pricing` | Free (\$0 forever), Pro (TBD, GA), and Team (TBD, Custom Scale) tiers (prices TBD per Plan §15) |
 | 3 | **Documentation** | `/docs` | 5-minute quickstart, OpenAPI import guide, templating reference |
 | 4 | **Authentication** | `/login`, `/signup`, `/forgot` | Email/password login, JWT tokens, automatic workspace provisioning |
 | 5 | **Dashboard** | `/dashboard` | Workspace metrics, quick actions, active project cards |
@@ -143,6 +146,7 @@ Add this step to your GitHub Actions workflow:
 ## Phase 0 Architecture Decision: Upstash vs Managed Redis
 
 Per Plan §12 and the Phase 0 spike assessment:
+- **Spike Context**: The Phase 0 spike specification evaluated architectural requirements and technical constraints; no live benchmark spike was executed against Upstash infrastructure. The decision is based on BullMQ's explicit operational prerequisites for atomic blocking Redis operations and persistent TCP connections.
 - **Requirement Analysis**: BullMQ queues, sliding-window rate limiting (`@nestjs/throttler`), and stateful scenario buckets require persistent TCP sockets, Lua script evaluation (`EVALSHA`), and atomic blocking stream operations (`XREADGROUP`, `BRPOPLPUSH`).
 - **Upstash Compatibility**: While Upstash offers a Serverless Redis HTTP/REST API, BullMQ and ioredis persistent connection pooling fail over HTTP without custom polling bridges. Upstash's native TCP endpoint supports the Redis protocol, but free-tier quotas (10,000 commands/day) are depleted rapidly by background queue polling heartbeats.
 - **Architectural Decision**:
