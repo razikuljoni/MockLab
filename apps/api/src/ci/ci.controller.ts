@@ -77,7 +77,7 @@ export class CiController {
     const runs = await this.dataStore.listContractRuns(projectId);
     const latestRun = runs[0];
 
-    let label = "contract";
+    const label = "contract";
     let statusText = "passing";
     let color = "#10b981"; // green
 

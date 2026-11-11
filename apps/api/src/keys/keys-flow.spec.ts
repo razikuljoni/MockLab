@@ -159,7 +159,7 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
       rateLimitPerMin: 3,
     });
 
-    let headersSet: Record<string, string> = {};
+    const headersSet: Record<string, string> = {};
     let statusSent = 0;
     let jsonSent: any = null;
 

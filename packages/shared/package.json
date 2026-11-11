@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "lint": "echo 'No lint errors in shared'",
+    "lint": "eslint .",
     "test": "vitest run"
   },
   "dependencies": {
