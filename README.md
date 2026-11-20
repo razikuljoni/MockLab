@@ -168,7 +168,7 @@ Per Plan §9.3 and Plan Fidelity evaluation:
 
 ### Frontend (Vercel)
 The web application is deployed on Vercel at [mocklab-theta.vercel.app](https://mocklab-theta.vercel.app).
-Set `NEXT_PUBLIC_API_URL` in your Vercel project environment variables to your deployed backend API URL (e.g. `https://mocklab-api.onrender.com`).
+Set `NEXT_PUBLIC_API_URL` in your Vercel project environment variables to your deployed backend API URL (e.g. `https://mocklab-api-prod.onrender.com`).
 
 ### Backend API (Render Free Tier)
 Deploy `apps/api` using the included `render.yaml` Blueprint or `Dockerfile`:

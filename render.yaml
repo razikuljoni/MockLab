@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mocklab-api
+    name: mocklab-api-prod
     runtime: docker
     plan: free
     region: oregon
