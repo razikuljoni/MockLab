@@ -40,19 +40,19 @@ NODE_ENV=production
 ### Docker Container Build
 From the monorepo root:
 ```bash
-docker build -t mocklab-api -f apps/api/Dockerfile .
+docker build -t mocklab-api-prod -f apps/api/Dockerfile .
 ```
 
 ### Environment Variables
-Configure on your backend hosting platform:
+Configure on your backend hosting platform (e.g. Render service `mocklab-api-prod`):
 ```env
 PORT=3001
 NODE_ENV=production
 DATABASE_URL="postgresql://user:password@host:5432/mocklab?sslmode=require"
 REDIS_URL="redis://default:password@host:6379"
 JWT_SECRET="generate-a-strong-random-32-byte-hex-string"
-ENCRYPTION_KEY="32-byte-hex-key-for-real-provider-credentials"
-CORS_ORIGIN="https://your-mocklab-app.vercel.app"
+SECRET_ENCRYPTION_KEY="32-byte-hex-key-for-real-provider-credentials"
+CORS_ORIGIN="https://mocklab-theta.vercel.app"
 ```
 
 ### Database Migration

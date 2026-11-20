@@ -98,7 +98,7 @@ export default function MarketingLayout({
               className="hidden md:flex items-center gap-1 px-2.5 py-1 rounded bg-[var(--surface-2)] font-mono text-[11px] text-[var(--ink-2)] hover:text-[var(--ink)] border border-[var(--border)] transition-colors"
             >
               <Star className="w-3 h-3 text-[var(--signal)] fill-[var(--signal)]" />
-              <span>4.2k ★</span>
+              <span>GitHub</span>
             </Link>
 
             <Link
@@ -129,8 +129,8 @@ export default function MarketingLayout({
             <Link href="/docs" className="hover:text-[var(--signal)] transition-colors">
               Documentation
             </Link>
-            <Link href="/docs" className="hover:text-[var(--signal)] transition-colors">
-              CLI Reference
+            <Link href="/pricing" className="hover:text-[var(--signal)] transition-colors">
+              Pricing
             </Link>
             <Link
               href="https://github.com/razikuljoni/MockLab"
@@ -140,11 +140,11 @@ export default function MarketingLayout({
             >
               GitHub Repository
             </Link>
-            <Link href="/pricing" className="hover:text-[var(--signal)] transition-colors">
-              Discord Community
+            <Link href="/terms" className="hover:text-[var(--signal)] transition-colors">
+              Terms of Service
             </Link>
-            <Link href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:text-[var(--signal)] transition-colors">
-              Twitter / X
+            <Link href="/privacy" className="hover:text-[var(--signal)] transition-colors">
+              Privacy Policy
             </Link>
           </div>
 

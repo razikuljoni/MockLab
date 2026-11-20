@@ -1,9 +1,18 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import { DataStoreService } from "../prisma/data-store.service";
 
 @Injectable()
 export class LogsService {
   constructor(private readonly dataStore: DataStoreService) {}
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async scheduledNightlyPurge() {
+    const projects = await this.dataStore.listAllProjects();
+    for (const project of projects) {
+      await this.dataStore.purgeRequestLogs(project.id, 7, 5000);
+    }
+  }
 
   async listLogs(
     projectId: string,

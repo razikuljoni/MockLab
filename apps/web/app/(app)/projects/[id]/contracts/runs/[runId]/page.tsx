@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getApiBaseUrl } from "../../../../../../../lib/api";
 import {
   FileCheck2,
   Play,
@@ -62,7 +63,7 @@ export default function ContractRunDetailPage() {
   const [collapseUnchanged, setCollapseUnchanged] = useState<boolean>(true);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const expectations: ExpectationRunItem[] = [
+  const [expectations, setExpectations] = useState<ExpectationRunItem[]>([
     {
       id: "exp_3",
       operationId: "GET /users/{id}",
@@ -157,7 +158,45 @@ export default function ContractRunDetailPage() {
         { id: "2", name: "Fluffy", tag: "cat" },
       ],
     },
-  ];
+  ]);
+
+  useEffect(() => {
+    const fetchRun = async () => {
+      try {
+        const apiBase = getApiBaseUrl();
+        const token = typeof window !== "undefined" ? localStorage.getItem("mocklab_token") : null;
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+        const res = await fetch(`${apiBase}/api/v1/projects/${projectId}/contracts/runs/${runId}`, { headers });
+        if (res.ok) {
+          const run = await res.json();
+          if (run && Array.isArray(run.results) && run.results.length > 0) {
+            const mapped: ExpectationRunItem[] = run.results.map((r: any, idx: number) => ({
+              id: r.expectationId || `exp_${idx}`,
+              operationId: `Operation #${idx + 1}`,
+              method: "GET",
+              path: "/api",
+              expectedStatus: r.mockStatus || 200,
+              mockStatus: r.mockStatus || 200,
+              realStatus: r.realStatus || 200,
+              verdict: r.verdict,
+              diffSummary: r.diff?.summary || { added: 0, removed: 0, changed: 0 },
+              diffLines: r.diff?.lines || [],
+              expectedJson: null,
+              actualJson: null,
+            }));
+            setExpectations(mapped);
+            if (mapped.length > 0) {
+              setActiveExpectationId(mapped[0].id);
+            }
+          }
+        }
+      } catch {
+        // Fall back to sample items
+      }
+    };
+    fetchRun();
+  }, [projectId, runId]);
 
   const currentExp = expectations.find((e) => e.id === activeExpectationId) || expectations[0];
 

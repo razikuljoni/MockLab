@@ -168,7 +168,7 @@ Per Plan §9.3 and Plan Fidelity evaluation:
 
 ### Frontend (Vercel)
 The web application is deployed on Vercel at [mocklab-theta.vercel.app](https://mocklab-theta.vercel.app).
-Set `NEXT_PUBLIC_API_URL` in your Vercel project environment variables to your deployed backend API URL (e.g. `https://mocklab-api.onrender.com`).
+Set `NEXT_PUBLIC_API_URL` in your Vercel project environment variables to your deployed backend API URL (e.g. `https://mocklab-api-prod.onrender.com`).
 
 ### Backend API (Render Free Tier)
 Deploy `apps/api` using the included `render.yaml` Blueprint or `Dockerfile`:
@@ -180,6 +180,26 @@ Deploy `apps/api` using the included `render.yaml` Blueprint or `Dockerfile`:
    - `JWT_SECRET`: Random 64-hex string (`openssl rand -hex 32`).
    - `SECRET_ENCRYPTION_KEY`: Random 64-hex string (`openssl rand -hex 32`).
    - `NEXT_PUBLIC_APP_URL`: `https://mocklab-theta.vercel.app`.
+
+### Production Monitoring & Observability
+- **Live Health Checks**: `GET /health` evaluates database connectivity (`SELECT 1`) and live Redis round-trip ping. Returns `200 OK` (`status: "ok"`) when healthy, or `503 Service Unavailable` (`status: "degraded"`) if PostgreSQL or Redis is unreachable.
+- **Uptime Monitoring**: Configure external monitors (e.g. Better Uptime, Checkly, or Render Health Checks) to poll `https://mocklab-api-prod.onrender.com/health` every 60 seconds.
+- **Fail-Closed Security**: In production, `JWT_SECRET` and `SECRET_ENCRYPTION_KEY` must be set or the API process refuses to boot.
+- **Honest Email Alerts**: Contract breaking drift notifications dispatch through Resend when `RESEND_API_KEY` is present; if omitted, the system logs the alert without claiming delivery.
+
+### Database Backups & Disaster Recovery
+- **Automated Managed Backups**: Production PostgreSQL (managed via Neon or Supabase) provides continuous WAL archiving and automated point-in-time recovery (PITR) with daily snapshot retention.
+- **Manual Backups**:
+  ```bash
+  # Create binary compressed backup
+  pg_dump -Fc "$DATABASE_URL" > mocklab-backup-$(date +%Y%m%d).dump
+  ```
+- **Disaster Recovery Restore**:
+  ```bash
+  # Restore schema and records
+  pg_restore --clean --if-exists -d "$DATABASE_URL" mocklab-backup-YYYYMMDD.dump
+  ```
+- **Zero-Downtime Schema Migrations**: Container startup automatically executes `prisma migrate deploy` prior to launching the NestJS application.
 
 ---
 

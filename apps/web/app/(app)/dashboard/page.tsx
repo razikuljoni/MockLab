@@ -18,10 +18,13 @@ export default function DashboardPage() {
             <Upload className="w-3.5 h-3.5" />
             <span>Import Spec</span>
           </Link>
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--signal)] text-[var(--surface-0)] text-xs font-semibold hover:opacity-90 transition-opacity">
+          <Link
+            href="/projects"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[var(--signal)] text-[var(--surface-0)] text-xs font-semibold hover:opacity-90 transition-opacity"
+          >
             <FolderPlus className="w-3.5 h-3.5" />
             <span>New Project</span>
-          </button>
+          </Link>
         </div>
       </div>
 

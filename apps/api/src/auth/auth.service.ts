@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   NotFoundException,
+  BadRequestException,
 } from "@nestjs/common";
 import { DataStoreService, UserRecord, WorkspaceRecord } from "../prisma/data-store.service";
 import { CryptoUtil } from "./crypto.util";
@@ -14,7 +15,16 @@ export class AuthService {
   private readonly jwtSecret: string;
 
   constructor(private readonly dataStore: DataStoreService) {
-    this.jwtSecret = process.env.JWT_SECRET || "mocklab-dev-jwt-secret-min-32-chars-long";
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === "test") {
+        this.jwtSecret = "mocklab-test-jwt-secret-min-32-chars-long";
+      } else {
+        throw new Error("FATAL: JWT_SECRET environment variable is required");
+      }
+    } else {
+      this.jwtSecret = secret;
+    }
   }
 
   async signup(input: UserSignupInput): Promise<{
@@ -123,6 +133,121 @@ export class AuthService {
     if (!updated) throw new NotFoundException("User not found");
     const { passwordHash: _, ...sanitizedUser } = updated;
     return sanitizedUser;
+  }
+
+  async loginWithGitHub(code: string): Promise<{
+    token: string;
+    user: Omit<UserRecord, "passwordHash">;
+    workspaces: (WorkspaceRecord & { role: Role })[];
+  }> {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException("GitHub OAuth credentials not configured");
+    }
+
+    const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+      }),
+    });
+
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) {
+      throw new UnauthorizedException("Failed to exchange GitHub authorization code");
+    }
+
+    const userRes = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "User-Agent": "MockLab-Auth",
+      },
+    });
+
+    if (!userRes.ok) {
+      throw new UnauthorizedException("Failed to fetch GitHub user profile");
+    }
+
+    const ghProfile = await userRes.json();
+    let email = ghProfile.email;
+
+    if (!email) {
+      try {
+        const emailsRes = await fetch("https://api.github.com/user/emails", {
+          headers: {
+            Authorization: `Bearer ${tokenData.access_token}`,
+            "User-Agent": "MockLab-Auth",
+          },
+        });
+        if (emailsRes.ok) {
+          const emails = await emailsRes.json();
+          if (Array.isArray(emails)) {
+            const primary = emails.find((e: any) => e.primary && e.verified) || emails[0];
+            if (primary?.email) email = primary.email;
+          }
+        }
+      } catch {
+        // Fall back to login handle email
+      }
+    }
+
+    if (!email) {
+      email = `${ghProfile.login || "user"}@users.noreply.github.com`;
+    }
+
+    let user = await this.dataStore.findUserByEmail(email);
+    if (!user) {
+      user = await this.dataStore.createUser({
+        email,
+        name: ghProfile.name || ghProfile.login || email.split("@")[0],
+        avatarUrl: ghProfile.avatar_url || null,
+      });
+
+      const wsName = `${user.name || "Default"}'s Workspace`;
+      let wsSlug = wsName.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+      if (!wsSlug || wsSlug.length < 2) wsSlug = `workspace-${Date.now().toString().slice(-4)}`;
+
+      let existingWs = await this.dataStore.findWorkspaceBySlug(wsSlug);
+      let counter = 1;
+      while (existingWs) {
+        wsSlug = `${wsSlug}-${counter++}`;
+        existingWs = await this.dataStore.findWorkspaceBySlug(wsSlug);
+      }
+
+      const workspace = await this.dataStore.createWorkspace({
+        name: wsName,
+        slug: wsSlug,
+        plan: Plan.FREE,
+      });
+
+      await this.dataStore.addWorkspaceMember(workspace.id, user.id, Role.OWNER);
+
+      await this.dataStore.createProject({
+        workspaceId: workspace.id,
+        name: "Petstore Demo",
+        slug: "petstore",
+        environment: "dev",
+        mockAuth: MockAuth.PUBLIC,
+        protocol: Protocol.REST,
+      });
+    }
+
+    const workspaces = await this.dataStore.listUserWorkspaces(user.id);
+    const token = CryptoUtil.signJwt(
+      { userId: user.id, email: user.email },
+      this.jwtSecret,
+      86400 * 7
+    );
+
+    const { passwordHash: _, ...sanitizedUser } = user;
+    return { token, user: sanitizedUser, workspaces };
   }
 
   async changePassword(userId: string, currentPass: string, newPass: string) {

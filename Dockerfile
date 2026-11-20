@@ -50,4 +50,4 @@ EXPOSE 3001
 USER node
 
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
-CMD ["node", "apps/api/dist/main"]
+CMD ["sh", "-c", "node apps/api/node_modules/prisma/build/index.js migrate deploy --schema=./apps/api/prisma/schema.prisma && node apps/api/dist/main"]

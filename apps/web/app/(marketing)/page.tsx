@@ -811,8 +811,8 @@ export default function LandingPage() {
                   Pro
                 </div>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="font-display text-4xl font-bold text-[var(--ink)]">$29</span>
-                  <span className="text-[var(--ink-2)] font-mono text-xs">/ month (TBD GA)</span>
+                  <span className="font-display text-4xl font-bold text-[var(--ink)]">TBD</span>
+                  <span className="text-[var(--ink-2)] font-mono text-xs">(Coming soon in GA)</span>
                 </div>
                 <p className="text-xs text-[var(--ink-2)] mt-3">
                   Full power for full-stack developers requiring latency injection, state persistence, and CI pipeline checks.
@@ -855,8 +855,8 @@ export default function LandingPage() {
                   Team
                 </div>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="font-display text-4xl font-bold text-[var(--ink)]">$99</span>
-                  <span className="text-[var(--ink-2)] font-mono text-xs">/ month (Scale)</span>
+                  <span className="font-display text-4xl font-bold text-[var(--ink)]">TBD</span>
+                  <span className="text-[var(--ink-2)] font-mono text-xs">(Coming soon in GA)</span>
                 </div>
                 <p className="text-xs text-[var(--ink-2)] mt-3">
                   Scale across multiple microservices with contract drift enforcement and enterprise SSO.
@@ -876,7 +876,7 @@ export default function LandingPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-[var(--signal)]" />
-                    <span>SAML / SSO Authentication</span>
+                    <span>Multi-Seat Team Workspaces</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-[var(--signal)]" />

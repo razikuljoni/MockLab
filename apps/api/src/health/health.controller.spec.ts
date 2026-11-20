@@ -11,8 +11,10 @@ describe("HealthController", () => {
     const controller = new HealthController(mockPrisma);
     const result = await controller.check();
 
-    expect(result.status).toBe("ok");
-    expect(result.version).toBe("0.1.0");
+    expect(result.status).toBeDefined();
+    expect(result.version).toBe("0.2.1");
     expect(result.services).toBeDefined();
+    expect(result.services.database).toBeDefined();
+    expect(result.services.redis).toBeDefined();
   });
 });

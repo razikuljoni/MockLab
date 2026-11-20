@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "../../components/sidebar";
 import { TopBar } from "../../components/top-bar";
+import { getApiBaseUrl } from "../../lib/api";
 
 export default function AppLayout({
   children,
@@ -15,15 +16,35 @@ export default function AppLayout({
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // Check for stored JWT session token
     const token = localStorage.getItem("mocklab_token");
     if (!token) {
       setIsAuthenticated(false);
       const redirectUrl = pathname ? `/login?redirect=${encodeURIComponent(pathname)}` : "/login";
       router.replace(redirectUrl);
-    } else {
-      setIsAuthenticated(true);
+      return;
     }
+
+    const apiBase = getApiBaseUrl();
+    fetch(`${apiBase}/api/v1/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          throw new Error("Invalid session token");
+        }
+        const data = await res.json();
+        if (data?.user) {
+          localStorage.setItem("mocklab_user", JSON.stringify(data.user));
+        }
+        setIsAuthenticated(true);
+      })
+      .catch(() => {
+        localStorage.removeItem("mocklab_token");
+        localStorage.removeItem("mocklab_user");
+        setIsAuthenticated(false);
+        const redirectUrl = pathname ? `/login?redirect=${encodeURIComponent(pathname)}` : "/login";
+        router.replace(redirectUrl);
+      });
   }, [router, pathname]);
 
   if (isAuthenticated === null || !isAuthenticated) {

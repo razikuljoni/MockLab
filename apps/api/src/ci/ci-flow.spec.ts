@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ContractRunnerService } from "../contracts/contract-runner.service";
@@ -196,5 +196,42 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
     expect(updatedSched?.lastRunId).toBeDefined();
     expect(updatedSched?.lastVerdict).toBeDefined();
     expect(updatedSched?.nextRunAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("5. Scheduled runs discover projects using public listAllProjects method", async () => {
+    const listSpy = vi.spyOn(dataStore, "listAllProjects");
+    await ciScheduler.sweepDueSchedules();
+    expect(listSpy).toHaveBeenCalled();
+  });
+
+  it("6. Scheduled runs execute exactly once: enqueued when queueService present, not double-executed", async () => {
+    const mockQueueService = {
+      registerContractRunProcessor: vi.fn(),
+      enqueueContractRun: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    const runnerSpy = vi.spyOn(contractRunner, "runSuite");
+
+    const queuedScheduler = new CiSchedulerService(
+      dataStore,
+      contractRunner,
+      mockQueueService
+    );
+
+    const sched = await dataStore.createContractSchedule({
+      projectId,
+      name: "Single-Exec Test Schedule",
+      cron: "0 * * * *",
+      enabled: true,
+    });
+
+    const result = await queuedScheduler.triggerSchedule(sched.id);
+
+    // Enqueued to queue
+    expect(mockQueueService.enqueueContractRun).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ status: "enqueued", runId: expect.any(String) });
+
+    // Did NOT run synchronously in triggerSchedule
+    expect(runnerSpy).not.toHaveBeenCalled();
   });
 });
