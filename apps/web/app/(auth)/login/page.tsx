@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Lock, Mail, AlertCircle } from "lucide-react";
+import { ArrowRight, Lock, Mail, AlertCircle, Github } from "lucide-react";
 import { getApiBaseUrl } from "../../../lib/api";
 
 export default function LoginPage() {
@@ -61,7 +61,25 @@ export default function LoginPage() {
         </div>
       )}
 
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = `${getApiBaseUrl()}/api/v1/auth/github`;
+          }}
+          className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-md border border-[var(--border)] bg-[var(--surface-0)] text-xs font-medium text-[var(--ink)] hover:border-[var(--signal)] hover:text-[var(--signal)] transition-colors"
+        >
+          <Github className="w-4 h-4" />
+          <span>Continue with GitHub</span>
+        </button>
 
+        <div className="relative flex items-center justify-center">
+          <div className="border-t border-[var(--border)] w-full" />
+          <span className="bg-[var(--surface-1)] px-2 text-[10px] text-[var(--ink-3)] uppercase tracking-wider relative">
+            Or with email
+          </span>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 text-xs">
         <div className="space-y-1.5">

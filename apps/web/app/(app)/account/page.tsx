@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
 import {
   User,
   Lock,
@@ -13,14 +14,29 @@ import {
   Key,
   Check,
   AlertCircle,
+  LogOut,
 } from "lucide-react";
 
 export default function AccountPage() {
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
 
-  const [name, setName] = useState("MD Razikul Islam Joni");
-  const [email] = useState("razikuljoni@gmail.com");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("mocklab_user");
+      if (stored) {
+        const u = JSON.parse(stored);
+        if (u.name) setName(u.name);
+        if (u.email) setEmail(u.email);
+      }
+    } catch {
+      // ignore parsing error
+    }
+  }, []);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -211,7 +227,9 @@ export default function AccountPage() {
             <Github className="w-5 h-5 text-[var(--ink)]" />
             <div>
               <span className="font-medium text-[var(--ink)] block">GitHub Account</span>
-              <span className="text-[11px] text-[var(--ink-3)]">Connected as @razikuljoni</span>
+              <span className="text-[11px] text-[var(--ink-3)]">
+                {name || email ? `Connected as @${(name || email.split("@")[0]).toLowerCase().replace(/[^a-z0-9]/g, "")}` : "Not connected"}
+              </span>
             </div>
           </div>
           <span className="px-2 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/20 font-semibold text-[11px]">
@@ -319,6 +337,27 @@ export default function AccountPage() {
           <span className="flex-1 truncate">mk_live_••••••••••••••••••••••••••••••••</span>
           <button className="px-3 py-1 rounded bg-[var(--surface-1)] border border-[var(--border)] text-[var(--ink)] text-[11px] hover:bg-[var(--surface-2)]">
             Rotate Token
+          </button>
+        </div>
+      </section>
+
+      {/* 7. Session Sign Out */}
+      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--ink)]">Session Management</h2>
+            <p className="text-xs text-[var(--ink-3)]">Sign out of your active MockLab session on this browser</p>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.removeItem("mocklab_token");
+              localStorage.removeItem("mocklab_user");
+              router.push("/login");
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-md border border-[var(--danger)]/30 text-[var(--danger)] hover:bg-[var(--danger)]/10 text-xs font-medium transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
           </button>
         </div>
       </section>
