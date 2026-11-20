@@ -22,7 +22,16 @@ export class AuthGuard implements CanActivate {
   private readonly jwtSecret: string;
 
   constructor(private readonly reflector: Reflector) {
-    this.jwtSecret = process.env.JWT_SECRET || "mocklab-dev-jwt-secret-min-32-chars-long";
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === "test") {
+        this.jwtSecret = "mocklab-test-jwt-secret-min-32-chars-long";
+      } else {
+        throw new Error("FATAL: JWT_SECRET environment variable is required");
+      }
+    } else {
+      this.jwtSecret = secret;
+    }
   }
 
   canActivate(context: ExecutionContext): boolean {

@@ -15,7 +15,16 @@ export class AuthService {
   private readonly jwtSecret: string;
 
   constructor(private readonly dataStore: DataStoreService) {
-    this.jwtSecret = process.env.JWT_SECRET || "mocklab-dev-jwt-secret-min-32-chars-long";
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      if (process.env.NODE_ENV === "test") {
+        this.jwtSecret = "mocklab-test-jwt-secret-min-32-chars-long";
+      } else {
+        throw new Error("FATAL: JWT_SECRET environment variable is required");
+      }
+    } else {
+      this.jwtSecret = secret;
+    }
   }
 
   async signup(input: UserSignupInput): Promise<{

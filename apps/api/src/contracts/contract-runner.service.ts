@@ -15,12 +15,23 @@ export interface RunContractOptions {
 @Injectable()
 export class ContractRunnerService {
   private readonly logger = new Logger(ContractRunnerService.name);
-  private readonly encryptionKey = process.env.ENCRYPTION_KEY || "01234567890123456789012345678901";
+  private readonly encryptionKey: string;
 
   constructor(
     private readonly dataStore: DataStoreService,
     private readonly ajvValidator: AjvSchemaValidatorService
-  ) {}
+  ) {
+    const key = process.env.SECRET_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
+    if (!key) {
+      if (process.env.NODE_ENV === "test") {
+        this.encryptionKey = "01234567890123456789012345678901";
+      } else {
+        throw new Error("FATAL: SECRET_ENCRYPTION_KEY environment variable is required");
+      }
+    } else {
+      this.encryptionKey = key;
+    }
+  }
 
   /**
    * Executes contract test suite for a project against both Mock and Real Provider.
