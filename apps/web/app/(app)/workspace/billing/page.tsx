@@ -381,7 +381,7 @@ export default function WorkspaceBillingPage() {
                   </td>
                   <td className="py-3 text-right">
                     <button
-                      onClick={() => alert(`Downloading invoice ${inv.id}`)}
+                      onClick={() => alert("Receipts and invoice PDFs will be available upon GA billing rollout. Current accounts are $0 during developer preview.")}
                       className="p-1 rounded text-[var(--ink-3)] hover:text-[var(--ink)] transition-colors inline-flex items-center gap-1 cursor-pointer"
                     >
                       <Download className="w-3.5 h-3.5" />

@@ -876,7 +876,7 @@ export default function LandingPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-[var(--signal)]" />
-                    <span>SAML / SSO Authentication</span>
+                    <span>Multi-Seat Team Workspaces</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-[var(--signal)]" />

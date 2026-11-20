@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Filter,
+  X,
 } from "lucide-react";
 
 export default function EndpointsListPage() {
@@ -20,8 +21,13 @@ export default function EndpointsListPage() {
 
   const [search, setSearch] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("All");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newMethod, setNewMethod] = useState("GET");
+  const [newPath, setNewPath] = useState("");
+  const [newSummary, setNewSummary] = useState("");
+  const [newTag, setNewTag] = useState("Pets");
 
-  const endpoints = [
+  const [endpointList, setEndpointList] = useState([
     {
       operationId: "GET /pets",
       method: "GET",
@@ -102,7 +108,7 @@ export default function EndpointsListPage() {
       hitCount: 620,
       contractStatus: "PASS",
     },
-  ];
+  ]);
 
   const tags = ["All", "Pets", "Store"];
 
@@ -123,7 +129,7 @@ export default function EndpointsListPage() {
     }
   };
 
-  const filteredEndpoints = endpoints.filter((ep) => {
+  const filteredEndpoints = endpointList.filter((ep) => {
     const matchesSearch =
       ep.path.toLowerCase().includes(search.toLowerCase()) ||
       ep.summary.toLowerCase().includes(search.toLowerCase()) ||
@@ -131,6 +137,28 @@ export default function EndpointsListPage() {
     const matchesTag = selectedTag === "All" || ep.tag === selectedTag;
     return matchesSearch && matchesTag;
   });
+
+  const handleAddEndpointSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPath.trim()) return;
+
+    const formattedPath = newPath.startsWith("/") ? newPath.trim() : `/${newPath.trim()}`;
+    const newEp = {
+      operationId: `${newMethod} ${formattedPath}`,
+      method: newMethod,
+      path: formattedPath,
+      summary: newSummary.trim() || `Endpoint for ${newMethod} ${formattedPath}`,
+      tag: newTag.trim() || "Custom",
+      rulesCount: 1,
+      hitCount: 0,
+      contractStatus: "PASS",
+    };
+
+    setEndpointList([newEp, ...endpointList]);
+    setIsModalOpen(false);
+    setNewPath("");
+    setNewSummary("");
+  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-12">
@@ -150,7 +178,10 @@ export default function EndpointsListPage() {
           >
             Re-import Spec
           </Link>
-          <button className="px-3.5 py-1.5 rounded-md bg-[var(--signal)] text-[var(--surface-0)] font-semibold text-xs flex items-center gap-1.5 hover:opacity-90 transition-opacity">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="px-3.5 py-1.5 rounded-md bg-[var(--signal)] text-[var(--surface-0)] font-semibold text-xs flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+          >
             <Plus className="w-3.5 h-3.5" />
             <span>Add Endpoint</span>
           </button>
@@ -280,6 +311,93 @@ export default function EndpointsListPage() {
           </table>
         </div>
       </div>
+
+      {/* Add Endpoint Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--surface-1)] border border-[var(--border)] rounded-lg max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <h3 className="text-sm font-semibold text-[var(--ink)] font-mono flex items-center gap-2">
+                <Plus className="w-4 h-4 text-[var(--signal)]" />
+                Add Mock Endpoint
+              </h3>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="text-[var(--ink-3)] hover:text-[var(--ink)] p-1 rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddEndpointSubmit} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="text-[var(--ink-2)] font-mono">HTTP Method</label>
+                <select
+                  value={newMethod}
+                  onChange={(e) => setNewMethod(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
+                >
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="PATCH">PATCH</option>
+                  <option value="DELETE">DELETE</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[var(--ink-2)] font-mono">Resource Path</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="/api/v1/orders"
+                  value={newPath}
+                  onChange={(e) => setNewPath(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[var(--ink-2)] font-mono">Summary / Description</label>
+                <input
+                  type="text"
+                  placeholder="Fetch active user orders"
+                  value={newSummary}
+                  onChange={(e) => setNewSummary(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[var(--ink-2)] font-mono">Category / Tag</label>
+                <input
+                  type="text"
+                  placeholder="Pets, Store, Orders"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-3 py-1.5 rounded border border-[var(--border)] text-[var(--ink-2)] hover:bg-[var(--surface-2)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded bg-[var(--signal)] text-[var(--surface-0)] font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Save Endpoint
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
