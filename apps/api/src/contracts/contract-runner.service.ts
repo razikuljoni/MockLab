@@ -9,6 +9,7 @@ export interface RunContractOptions {
   triggeredBy?: string;
   providerUrlOverride?: string;
   providerAuthOverride?: string;
+  runId?: string;
 }
 
 @Injectable()
@@ -133,10 +134,21 @@ export class ContractRunnerService {
 
     const durationMs = Date.now() - startTime;
 
+    if (options?.runId) {
+      const updated = await this.dataStore.updateContractRun(options.runId, {
+        specHash,
+        providerUrl: providerUrl || "mock",
+        status: overallStatus,
+        durationMs,
+        results,
+      });
+      if (updated) return updated;
+    }
+
     const runRecord = await this.dataStore.createContractRun({
       projectId,
       specHash,
-      providerUrl,
+      providerUrl: providerUrl || "mock",
       status: overallStatus,
       triggeredBy: options?.triggeredBy || "manual",
       durationMs,

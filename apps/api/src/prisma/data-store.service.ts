@@ -918,6 +918,47 @@ export class DataStoreService {
     return this.contractRuns.get(runId) || null;
   }
 
+  async updateContractRun(
+    id: string,
+    data: Partial<Omit<ContractRunRecord, "id" | "createdAt">>
+  ): Promise<ContractRunRecord | null> {
+    const existing = this.contractRuns.get(id);
+    if (!existing) return null;
+
+    Object.assign(existing, data);
+
+    if (this.isConnectedToPrisma) {
+      try {
+        await this.prisma.contractRun.update({
+          where: { id },
+          data: {
+            status: data.status,
+            durationMs: data.durationMs,
+            specHash: data.specHash,
+            providerUrl: data.providerUrl,
+            ...(data.results
+              ? {
+                  results: {
+                    create: data.results.map((r) => ({
+                      expectationId: r.expectationId,
+                      mockStatus: r.mockStatus,
+                      realStatus: r.realStatus,
+                      verdict: r.verdict,
+                      diff: r.diff,
+                    })),
+                  },
+                }
+              : {}),
+          },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Prisma updateContractRun fallback: ${err.message}`);
+      }
+    }
+
+    return existing;
+  }
+
   // ── ContractSchedule Operations ──
   async createContractSchedule(
     data: Omit<ContractScheduleRecord, "id" | "createdAt" | "lastRunId" | "lastVerdict" | "nextRunAt">

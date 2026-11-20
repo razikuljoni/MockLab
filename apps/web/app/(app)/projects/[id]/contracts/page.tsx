@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getApiBaseUrl } from "../../../../../lib/api";
 import {
   FileCheck2,
   Play,
@@ -54,6 +55,66 @@ export default function ContractsListPage() {
   const projectId = (params?.id as string) || "petstore";
 
   const [isRunning, setIsRunning] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const apiBase = getApiBaseUrl();
+        const token = typeof window !== "undefined" ? localStorage.getItem("mocklab_token") : null;
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+        const [expRes, runsRes] = await Promise.all([
+          fetch(`${apiBase}/api/v1/projects/${projectId}/contracts/expectations`, { headers }),
+          fetch(`${apiBase}/api/v1/projects/${projectId}/contracts/runs`, { headers }),
+        ]);
+
+        if (expRes.ok) {
+          const expData = await expRes.json();
+          if (Array.isArray(expData) && expData.length > 0) {
+            setExpectations(
+              expData.map((e: any) => ({
+                id: e.id,
+                operationId: e.operationId || `${e.request?.method || "GET"} ${e.request?.path || ""}`,
+                method: e.request?.method || "GET",
+                path: e.request?.path || e.operationId || "/",
+                name: e.name,
+                providerState: e.providerState,
+                expectedStatus: e.expectedStatus || 200,
+                mockStatus: e.expectedStatus || 200,
+                realStatus: null,
+                verdict: "PASS",
+                enabled: e.enabled ?? true,
+              }))
+            );
+          }
+        }
+
+        if (runsRes.ok) {
+          const runsData = await runsRes.json();
+          if (Array.isArray(runsData) && runsData.length > 0) {
+            setRecentRuns(
+              runsData.map((r: any) => ({
+                id: r.id,
+                specHash: r.specHash,
+                status: r.status,
+                passCount: r.results?.filter((res: any) => res.verdict === "PASS").length ?? 0,
+                breakingCount: r.results?.filter((res: any) => res.verdict === "BREAKING").length ?? 0,
+                nonBreakingCount: r.results?.filter((res: any) => res.verdict === "NON_BREAKING").length ?? 0,
+                durationMs: r.durationMs,
+                triggeredBy: r.triggeredBy,
+                createdAt: new Date(r.createdAt).toLocaleTimeString(),
+              }))
+            );
+          }
+        }
+      } catch {
+        // Fallback to initial display
+      }
+    };
+
+    fetchData();
+  }, [projectId]);
+
   const [expectations, setExpectations] = useState<ExpectationItem[]>([
     {
       id: "exp_1",
@@ -145,16 +206,70 @@ export default function ContractsListPage() {
     },
   ]);
 
-  const handleRunAll = () => {
+  const handleRunAll = async () => {
     setIsRunning(true);
-    setTimeout(() => {
+    try {
+      const apiBase = getApiBaseUrl();
+      const token = typeof window !== "undefined" ? localStorage.getItem("mocklab_token") : null;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      const res = await fetch(`${apiBase}/api/v1/projects/${projectId}/contracts/run`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ triggeredBy: "web-ui:contracts" }),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to trigger contract run: ${res.status}`);
+      }
+
+      const { runId, pollUrl } = await res.json();
+
+      const targetPollUrl = pollUrl ? `${apiBase}${pollUrl}` : `${apiBase}/api/v1/projects/${projectId}/contracts/runs/${runId}`;
+
+      for (let i = 0; i < 20; i++) {
+        await new Promise((r) => setTimeout(r, 600));
+        const checkRes = await fetch(targetPollUrl, { headers });
+        if (checkRes.ok) {
+          const run = await checkRes.json();
+          if (run && run.status !== "PENDING") {
+            break;
+          }
+        }
+      }
+
       setIsRunning(false);
-      router.push(`/projects/${projectId}/contracts/runs/run-042`);
-    }, 1200);
+      router.push(`/projects/${projectId}/contracts/runs/${runId}`);
+    } catch (err: any) {
+      setIsRunning(false);
+      alert(`Contract run error: ${err.message}`);
+    }
   };
 
-  const handleGenerateFromSpec = () => {
-    alert("Generated 4 contract expectations from latest OpenAPI specification.");
+  const handleGenerateFromSpec = async () => {
+    try {
+      const apiBase = getApiBaseUrl();
+      const token = typeof window !== "undefined" ? localStorage.getItem("mocklab_token") : null;
+      const headers: HeadersInit = {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      const res = await fetch(`${apiBase}/api/v1/projects/${projectId}/contracts/expectations/generate`, {
+        method: "POST",
+        headers,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || `Generated ${data.count} expectations`);
+        window.location.reload();
+      } else {
+        alert("Failed to generate expectations from spec");
+      }
+    } catch (err: any) {
+      alert(`Error generating expectations: ${err.message}`);
+    }
   };
 
   const getVerdictBadge = (verdict: string) => {

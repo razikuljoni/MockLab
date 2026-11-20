@@ -22,7 +22,7 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (this.queueService) {
       this.queueService.registerContractRunProcessor(async (job) => {
-        await this.executeJob(job.projectId, job.triggeredBy);
+        await this.executeJob(job.projectId, job.triggeredBy, undefined, job.runId);
       });
     }
 
@@ -68,19 +68,22 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(`Enqueueing scheduled contract run for schedule '${sched.name}'`);
 
     if (this.queueService) {
+      const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await this.queueService.enqueueContractRun({
-        runId: `run_${Date.now()}`,
+        runId,
         projectId: sched.projectId,
         triggeredBy: `schedule:${sched.name}`,
       });
+      return { status: "enqueued", runId };
     }
 
     return this.executeJob(sched.projectId, `schedule:${sched.name}`, sched.id);
   }
 
-  private async executeJob(projectId: string, triggeredBy?: string, scheduleId?: string) {
+  private async executeJob(projectId: string, triggeredBy?: string, scheduleId?: string, runId?: string) {
     const runResult = await this.contractRunner.runSuite(projectId, {
       triggeredBy: triggeredBy || "schedule:cron",
+      runId,
     });
 
     // Derive last verdict

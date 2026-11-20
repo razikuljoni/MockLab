@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ContractRunnerService } from "./contract-runner.service";
 import { AjvSchemaValidatorService } from "./ajv-schema-validator.service";
 import { ContractDiffUtil } from "./contract-diff.util";
+import { ContractsController } from "./contracts.controller";
 import { MockAuth, Verdict, RunStatus } from "@prisma/client";
 
 describe("Phase 8 Contract Tests Acceptance Suite", () => {
@@ -163,5 +164,31 @@ describe("Phase 8 Contract Tests Acceptance Suite", () => {
     expect(generated[0].name).toBe("List Pets");
     expect(generated[0].expectedStatus).toBe(200);
     expect(generated[0].generated).toBe(true);
+  });
+
+  it("5. ContractsController.triggerRun returns 202 accepted with pollable runId", async () => {
+    const controller = new ContractsController(contractRunner, dataStore);
+
+    const res = await controller.triggerRun(projectId, {
+      triggeredBy: "manual-ui",
+    });
+
+    expect(res.status).toBe("accepted");
+    expect(res.runId).toMatch(/^run_/);
+    expect(res.pollUrl).toBe(`/api/v1/projects/${projectId}/contracts/runs/${res.runId}`);
+
+    // Verify initial run record exists and is pollable
+    const initialRun = await controller.getRunDetail(projectId, res.runId);
+    expect(initialRun).toBeDefined();
+    expect(initialRun?.id).toBe(res.runId);
+    expect(initialRun?.status).toBe(RunStatus.PENDING);
+
+    // Wait for in-process setImmediate execution
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Verify completed status
+    const completedRun = await controller.getRunDetail(projectId, res.runId);
+    expect(completedRun?.status).not.toBe(RunStatus.PENDING);
+    expect(completedRun?.results).toBeDefined();
   });
 });

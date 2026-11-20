@@ -36,6 +36,7 @@ enum Protocol {
 }
 
 enum RunStatus {
+  PENDING
   PASS
   FAIL_BREAKING
   ERROR

@@ -9,18 +9,23 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Optional,
+  NotFoundException,
 } from "@nestjs/common";
 import { ContractRunnerService, RunContractOptions } from "./contract-runner.service";
 import { DataStoreService } from "../prisma/data-store.service";
+import { ProductionQueueService } from "../queue/production-queue.service";
 import { AuthGuard } from "../auth/auth.guard";
 import { RolesGuard } from "../auth/roles.guard";
+import { RunStatus } from "@prisma/client";
 
 @Controller("api/v1/projects/:id/contracts")
 @UseGuards(AuthGuard, RolesGuard)
 export class ContractsController {
   constructor(
     private readonly runnerService: ContractRunnerService,
-    private readonly dataStore: DataStoreService
+    private readonly dataStore: DataStoreService,
+    @Optional() private readonly queueService?: ProductionQueueService
   ) {}
 
   @Get("expectations")
@@ -78,13 +83,49 @@ export class ContractsController {
     return { success: deleted, id: expId };
   }
 
-  @Post("runs")
-  @HttpCode(HttpStatus.OK)
+  @Post(["run", "runs"])
+  @HttpCode(HttpStatus.ACCEPTED)
   async triggerRun(
     @Param("id") projectId: string,
     @Body() options?: RunContractOptions
   ) {
-    return this.runnerService.runSuite(projectId, options);
+    const project = await this.dataStore.findProjectById(projectId);
+    if (!project) throw new NotFoundException("Project not found");
+
+    const spec = await this.dataStore.getLatestSpecVersion(projectId);
+    const specHash = spec?.hash || "spec_v1_initial";
+
+    const runRecord = await this.dataStore.createContractRun({
+      projectId,
+      specHash,
+      providerUrl: options?.providerUrlOverride ?? project.realProviderUrl ?? "mock",
+      status: RunStatus.PENDING,
+      triggeredBy: options?.triggeredBy || "manual",
+      durationMs: 0,
+      results: [],
+    });
+
+    if (this.queueService) {
+      await this.queueService.enqueueContractRun({
+        runId: runRecord.id,
+        projectId,
+        triggeredBy: options?.triggeredBy || "manual",
+        providerUrlOverride: options?.providerUrlOverride,
+        providerAuthOverride: options?.providerAuthOverride,
+      });
+    } else {
+      setImmediate(() => {
+        this.runnerService
+          .runSuite(projectId, { ...options, runId: runRecord.id })
+          .catch((err) => console.error("Async contract run worker error:", err));
+      });
+    }
+
+    return {
+      status: "accepted",
+      runId: runRecord.id,
+      pollUrl: `/api/v1/projects/${projectId}/contracts/runs/${runRecord.id}`,
+    };
   }
 
   @Get("runs")
