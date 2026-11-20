@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getApiBaseUrl } from "../../../lib/api";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,18 +12,12 @@ export async function POST(req: NextRequest) {
     // Resolve localhost / internal API mapping if needed
     let targetUrl = url;
     if (targetUrl.includes(".mocklab.dev")) {
-      // Route through mock engine (Render API, local dev, or origin)
+      // Route through mock engine (Render API or local dev)
       const slugMatch = targetUrl.match(/https?:\/\/([^.]+)\.mocklab\.dev(.*)/);
       if (slugMatch) {
         const slug = slugMatch[1];
         const restPath = slugMatch[2] || "";
-        const host = req.headers.get("host") || "127.0.0.1:3001";
-        const proto = req.headers.get("x-forwarded-proto") || "http";
-        const origin = `${proto}://${host}`;
-        const apiBase =
-          process.env.NEXT_PUBLIC_API_URL ||
-          process.env.API_URL ||
-          origin;
+        const apiBase = getApiBaseUrl();
         targetUrl = `${apiBase.replace(/\/+$/, "")}/m/${slug}${restPath}`;
       }
     }

@@ -65,10 +65,7 @@ paths:
     setErrorIssues([]);
 
     // Determine spec payload
-    let specContent = rawText;
-    if (activeTab === "url" || (!specContent && activeTab !== "paste")) {
-      specContent = samplePetstoreSpec;
-    }
+    const specContent = rawText;
 
     try {
       const apiBase = getApiBaseUrl();
@@ -82,7 +79,7 @@ paths:
         method: "POST",
         headers,
         body: JSON.stringify({
-          rawSpec: specContent,
+          rawSpec: activeTab === "url" ? (specContent || "") : specContent,
           sourceUrl: activeTab === "url" ? specUrl : undefined,
         }),
       });
@@ -99,15 +96,13 @@ paths:
 
       setDiffPreview(data.diff);
       setImportSuccess(true);
-    } catch {
-      // Fallback preview for offline demonstration
-      setDiffPreview({
-        added: ["GET /pets", "POST /pets", "GET /pets/{petId}"],
-        changed: [],
-        removed: [],
-        conflicts: [],
-      });
-      setImportSuccess(true);
+    } catch (err: unknown) {
+      setErrorIssues([
+        {
+          path: "$",
+          message: (err as Error)?.message || "Failed to connect to API server. Please check your backend connection.",
+        },
+      ]);
     } finally {
       setImporting(false);
     }
