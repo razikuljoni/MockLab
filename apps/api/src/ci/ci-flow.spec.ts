@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { ContractRunnerService } from "../contracts/contract-runner.service";
@@ -196,5 +196,11 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
     expect(updatedSched?.lastRunId).toBeDefined();
     expect(updatedSched?.lastVerdict).toBeDefined();
     expect(updatedSched?.nextRunAt!.getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("5. Scheduled runs discover projects using public listAllProjects method", async () => {
+    const listSpy = vi.spyOn(dataStore, "listAllProjects");
+    await ciScheduler.sweepDueSchedules();
+    expect(listSpy).toHaveBeenCalled();
   });
 });

@@ -42,7 +42,7 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async sweepDueSchedules(): Promise<number> {
-    const allProjects = Array.from((this.dataStore as any).projects.values());
+    const allProjects = await this.dataStore.listAllProjects();
     let triggeredCount = 0;
 
     for (const project of allProjects as any[]) {

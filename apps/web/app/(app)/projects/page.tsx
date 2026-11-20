@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getApiBaseUrl } from "../../../lib/api";
 import {
   FolderGit2,
   Plus,
@@ -21,8 +22,8 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
 
-  // Initial projects list including seeded Petstore demo
-  const [projects, setProjects] = useState([
+  // Projects list loaded from API with local cache
+  const [projects, setProjects] = useState<any[]>([
     {
       id: "petstore",
       name: "Petstore Demo",
@@ -36,26 +37,69 @@ export default function ProjectsPage() {
       updatedAt: "10 mins ago",
       isDemo: true,
     },
-    {
-      id: "payments-api",
-      name: "Payments Service",
-      slug: "payments",
-      environment: "staging",
-      mockUrl: "https://payments.mocklab.dev",
-      endpointsCount: 14,
-      rulesCount: 22,
-      requestsToday: 4890,
-      contractStatus: "PASS",
-      updatedAt: "2 hours ago",
-      isDemo: false,
-    },
   ]);
+
+  useEffect(() => {
+    const loadProjects = async () => {
+      try {
+        const token = localStorage.getItem("mocklab_token");
+        const userJson = localStorage.getItem("mocklab_user");
+        let wsId = "default";
+        if (userJson) {
+          const u = JSON.parse(userJson);
+          if (u.workspaces?.[0]?.id) wsId = u.workspaces[0].id;
+        }
+
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/api/v1/workspaces/${wsId}/projects`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setProjects(
+              data.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                slug: p.slug,
+                environment: p.environment || "dev",
+                mockUrl: `https://${p.slug}.mocklab.dev`,
+                endpointsCount: p.endpointsCount || 0,
+                rulesCount: p.rulesCount || 0,
+                requestsToday: p.requestsToday || 0,
+                contractStatus: p.contractStatus || "PASS",
+                updatedAt: "Active",
+                isDemo: p.slug === "petstore",
+              }))
+            );
+            return;
+          }
+        }
+      } catch {
+        // Fall back to stored local projects
+      }
+
+      try {
+        const local = localStorage.getItem("mocklab_local_projects");
+        if (local) {
+          const parsed = JSON.parse(local);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setProjects(parsed);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    loadProjects();
+  }, []);
 
   // New project form state
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectSlug, setNewProjectSlug] = useState("");
 
-  const handleCreateProject = (e: React.FormEvent) => {
+  const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName) return;
 
@@ -74,7 +118,40 @@ export default function ProjectsPage() {
       isDemo: false,
     };
 
-    setProjects([newProj, ...projects]);
+    try {
+      const token = localStorage.getItem("mocklab_token");
+      const userJson = localStorage.getItem("mocklab_user");
+      let wsId = "default";
+      if (userJson) {
+        const u = JSON.parse(userJson);
+        if (u.workspaces?.[0]?.id) wsId = u.workspaces[0].id;
+      }
+
+      const apiBase = getApiBaseUrl();
+      await fetch(`${apiBase}/api/v1/workspaces/${wsId}/projects`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: newProjectName,
+          slug,
+          environment: "dev",
+        }),
+      });
+    } catch {
+      // Offline fallback
+    }
+
+    setProjects((prev) => {
+      const updated = [newProj, ...prev];
+      try {
+        localStorage.setItem("mocklab_local_projects", JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
     setShowNewModal(false);
     setNewProjectName("");
     setNewProjectSlug("");

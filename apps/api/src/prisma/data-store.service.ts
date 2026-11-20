@@ -175,11 +175,26 @@ export class DataStoreService {
 
   async onModuleInit() {
     try {
-      await this.prisma.$queryRaw`SELECT 1`;
-      this.isConnectedToPrisma = true;
-      this.logger.log("DataStore connected to PostgreSQL via Prisma.");
-    } catch {
+      if (process.env.DATABASE_URL) {
+        await this.prisma.$queryRaw`SELECT 1`;
+        this.isConnectedToPrisma = true;
+        this.logger.log("DataStore connected to PostgreSQL via Prisma.");
+        return;
+      }
+      throw new Error("DATABASE_URL is not configured");
+    } catch (err: unknown) {
       this.isConnectedToPrisma = false;
+      if (process.env.NODE_ENV === "production") {
+        this.logger.error(
+          "FATAL: Failed to connect to PostgreSQL in production mode. Refusing silent in-memory fallback."
+        );
+        throw new Error(
+          `Failed to connect to PostgreSQL database in production: ${
+            (err as Error)?.message || "database offline"
+          }`,
+          { cause: err }
+        );
+      }
       this.logger.warn("DataStore using in-memory store (PostgreSQL offline or sandbox mode).");
     }
   }
@@ -410,6 +425,13 @@ export class DataStoreService {
       return (await this.prisma.project.findMany({ where: { workspaceId } })) as ProjectRecord[];
     }
     return Array.from(this.projects.values()).filter((p) => p.workspaceId === workspaceId);
+  }
+
+  async listAllProjects(): Promise<ProjectRecord[]> {
+    if (this.isConnectedToPrisma) {
+      return (await this.prisma.project.findMany()) as ProjectRecord[];
+    }
+    return Array.from(this.projects.values());
   }
 
   async findProjectById(id: string): Promise<ProjectRecord | null> {
