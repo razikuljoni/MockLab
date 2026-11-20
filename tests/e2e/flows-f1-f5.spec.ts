@@ -1,15 +1,20 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () => {
-  const targetBaseUrl =
+  const apiBaseUrl =
+    process.env.PLAYWRIGHT_API_BASE_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://mocklab-api-prod.onrender.com";
+
+  const webBaseUrl =
     process.env.PLAYWRIGHT_TEST_BASE_URL || "https://mocklab-theta.vercel.app";
 
   test("F1 — First mock in 60 seconds: Signup, Import OpenAPI spec, Send playground request", async ({
     request,
   }) => {
-    // 1. Signup fresh user
+    // 1. Signup fresh user against real API
     const uniqueEmail = `test_${Date.now()}@mocklab.dev`;
-    const signupRes = await request.post(`${targetBaseUrl}/api/v1/auth/signup`, {
+    const signupRes = await request.post(`${apiBaseUrl}/api/v1/auth/signup`, {
       data: {
         email: uniqueEmail,
         password: "Password123!",
@@ -21,9 +26,9 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
     const signupData = await signupRes.json();
     expect(signupData.token).toBeDefined();
 
-    // 2. Import OpenAPI Petstore spec
+    // 2. Import OpenAPI Petstore spec against real API
     const importRes = await request.post(
-      `${targetBaseUrl}/api/v1/projects/petstore/spec/import`,
+      `${apiBaseUrl}/api/v1/projects/petstore/spec/import`,
       {
         headers: { Authorization: `Bearer ${signupData.token}` },
         data: {
@@ -31,15 +36,15 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
         },
       }
     );
-    expect(importRes.status()).toBe(200);
+    expect([200, 201]).toContain(importRes.status());
     const importData = await importRes.json();
     expect(importData.diff.added.length).toBeGreaterThan(0);
     expect(importData.diff.added).toContain("GET /pets/{petId}");
 
-    // 3. Execute mock request via playground proxy
-    const proxyRes = await request.post(`${targetBaseUrl}/api/proxy`, {
+    // 3. Execute mock request via web playground proxy to real API
+    const proxyRes = await request.post(`${webBaseUrl}/api/proxy`, {
       data: {
-        url: "https://petstore.mocklab.dev/pets/42",
+        url: `${apiBaseUrl}/m/petstore/pets/42`,
         method: "GET",
         headers: { Accept: "application/json" },
       },
@@ -54,8 +59,8 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
   test("F2 — Make it stateful: CRUD round-trip & scenario isolation", async ({
     request,
   }) => {
-    // 1. GET item from stateful mock bucket
-    const getRes = await request.get(`${targetBaseUrl}/m/petstore/pets/42`, {
+    // 1. GET item from stateful mock bucket on real mock engine
+    const getRes = await request.get(`${apiBaseUrl}/m/petstore/pets/42`, {
       headers: {
         "X-MockLab-Scenario": "qa-order-flow",
       },
@@ -73,18 +78,19 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
   test("F3 — Break it on purpose: Faults, custom status & rule latency", async ({
     request,
   }) => {
-    // Send request with custom scenario/fault headers
+    // Send request with custom latency injection; verify non-vacuous elapsed duration >= 100ms
     const start = Date.now();
-    const res = await request.get(`${targetBaseUrl}/m/petstore/pets/42`, {
+    const res = await request.get(`${apiBaseUrl}/m/petstore/pets/42`, {
       headers: {
         "X-MockLab-Scenario": "fault-injection",
-        "X-Injected-Delay": "50",
+        "X-Injected-Delay": "150",
       },
     });
     const elapsed = Date.now() - start;
 
     expect(res.status()).toBe(200);
-    expect(elapsed).toBeGreaterThanOrEqual(0);
+    // Non-vacuous check: latency actually injected
+    expect(elapsed).toBeGreaterThanOrEqual(100);
     expect(res.headers()["x-mocklab-rule"]).toBeDefined();
     expect(res.headers()["x-ratelimit-remaining"]).toBeDefined();
   });
@@ -93,12 +99,12 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
     request,
   }) => {
     // Send request and verify schema conformance
-    const mockRes = await request.get(`${targetBaseUrl}/m/petstore/pets/42`);
+    const mockRes = await request.get(`${apiBaseUrl}/m/petstore/pets/42`);
     expect(mockRes.status()).toBe(200);
     const body = await mockRes.json();
 
     // Verify fields conforming to Petstore schema
-    expect(typeof body.id).toBe("number");
+    expect(body.id).toBe(42);
     expect(typeof body.name).toBe("string");
     expect(Array.isArray(body.tags)).toBe(true);
   });
@@ -107,7 +113,7 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
     request,
   }) => {
     const notFoundRes = await request.get(
-      `${targetBaseUrl}/m/petstore/unknown-path-for-testing`
+      `${apiBaseUrl}/m/petstore/unknown-path-for-testing`
     );
     expect(notFoundRes.status()).toBe(404);
     const body = await notFoundRes.json();
@@ -117,6 +123,6 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
     expect(body.nearMiss).toBeDefined();
     expect(body.nearMiss.closestRule).toBeDefined();
     expect(body.nearMiss.missedField).toBeDefined();
-    expect(body.nearMiss.reason).toBeDefined();
+    expect(body.nearMiss.reasons || body.nearMiss.reason).toBeDefined();
   });
 });

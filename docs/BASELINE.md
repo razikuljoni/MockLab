@@ -26,6 +26,12 @@
   - #17: `chore(deps): bump github/codeql-action from 3.28.10 to 3.28.11`
   - #16: `chore(deps): bump actions/setup-node from 4.2.0 to 4.3.0`
 
+## 4. Dependabot PR Triage Record (Phase 10)
+
+- **PR #16 (`actions/setup-node` 4.2.0 -> 4.3.0)**: **APPROVED**. Safe patch bump for GitHub Actions runner setup.
+- **PR #17 (`github/codeql-action` 3.28.10 -> 3.28.11)**: **APPROVED**. Security analysis patch release.
+- **PR #18 (`chore(deps): bump dependencies group across 1 directory`)**: **HELD / TRIAGED**. Bundled PR failed CI (Run 43804383707). Core runtime dependencies (`@prisma/client` 6.4.1, `typescript` 5.8.2, `@types/node` 22.13.8) are locked and verified passing across all 17 test suites. Split individual updates into discrete, verified PRs after launch.
+
 ## 3. Owner Decisions (Recommended Defaults Applied)
 
 1. **Mock URL shape:** Keep `/m/:slug` path prefix on API domain (no domain purchase required).
