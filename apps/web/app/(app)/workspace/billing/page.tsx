@@ -19,7 +19,8 @@ import {
 interface PlanTier {
   id: "FREE" | "PRO" | "TEAM";
   name: string;
-  price: number;
+  priceDisplay: string;
+  periodDisplay: string;
   description: string;
   badge?: string;
   limits: {
@@ -36,14 +37,15 @@ const TIERS: PlanTier[] = [
   {
     id: "FREE",
     name: "Free",
-    price: 0,
+    priceDisplay: "$0",
+    periodDisplay: "/ forever",
     description: "Ideal for individual developers and small open-source mock experimentation.",
     limits: {
-      mockRequests: "10,000 / mo",
-      contractRuns: "50 / mo",
+      mockRequests: "5,000 / mo",
+      contractRuns: "100 / mo",
       logRetention: "7 Days",
-      projects: "3 Projects",
-      teamMembers: "2 Members",
+      projects: "2 Projects",
+      teamMembers: "3 Members",
     },
     features: [
       "Core Mock Engine & Routing",
@@ -56,12 +58,13 @@ const TIERS: PlanTier[] = [
   {
     id: "PRO",
     name: "Pro",
-    price: 19,
+    priceDisplay: "TBD",
+    periodDisplay: "Coming soon in GA",
     description: "Built for agile engineering teams shipping microservices and CI contracts.",
     badge: "Most Popular",
     limits: {
-      mockRequests: "250,000 / mo",
-      contractRuns: "2,500 / mo",
+      mockRequests: "100,000 / mo",
+      contractRuns: "5,000 / mo",
       logRetention: "30 Days",
       projects: "20 Projects",
       teamMembers: "10 Members",
@@ -72,28 +75,28 @@ const TIERS: PlanTier[] = [
       "Automated Contract CI Sweep & Badges",
       "Stateful Scenario Buckets & CRUD",
       "30-Day Traffic Log Retention",
-      "Priority Email & Slack Support",
+      "Priority Community & Email Support",
     ],
   },
   {
     id: "TEAM",
     name: "Team",
-    price: 79,
-    description: "Enterprise-grade scale with unlimited projects, dedicated SLA, and governance.",
+    priceDisplay: "TBD",
+    periodDisplay: "Coming soon in GA",
+    description: "Organization scale with multi-project workspaces and higher rate limits.",
     limits: {
       mockRequests: "1,000,000 / mo",
-      contractRuns: "10,000 / mo",
+      contractRuns: "25,000 / mo",
       logRetention: "90 Days",
-      projects: "Unlimited",
-      teamMembers: "Unlimited",
+      projects: "100 Projects",
+      teamMembers: "50 Members",
     },
     features: [
       "Everything in Pro, plus:",
-      "Unlimited Projects & Teammates",
+      "Multi-seat Team Workspaces & RBAC",
       "90-Day Traffic Log Retention",
-      "Custom Mock Subdomains & CNAME",
-      "Enterprise SAML / SSO",
-      "99.9% Uptime SLA Guarantee",
+      "Audit Trail & Advanced API Key Limits",
+      "High-throughput Rate Limit Buffers",
     ],
   },
 ];
@@ -210,12 +213,12 @@ export default function WorkspaceBillingPage() {
                 <TrendingUp className="w-3.5 h-3.5 text-[var(--info)]" />
                 Contract Runs
               </span>
-              <span className="font-mono text-[var(--ink)]">18 / 50</span>
+              <span className="font-mono text-[var(--ink)]">18 / 100</span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--surface-0)] overflow-hidden">
-              <div className="h-full bg-[var(--info)] rounded-full transition-all" style={{ width: "36%" }}></div>
+              <div className="h-full bg-[var(--info)] rounded-full transition-all" style={{ width: "18%" }}></div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)] font-mono">36.0% used (32 remaining)</div>
+            <div className="text-[11px] text-[var(--ink-3)] font-mono">18.0% used (82 remaining)</div>
           </div>
 
           {/* Active Projects */}
@@ -225,12 +228,12 @@ export default function WorkspaceBillingPage() {
                 <Layers className="w-3.5 h-3.5 text-[var(--warning)]" />
                 Active Projects
               </span>
-              <span className="font-mono text-[var(--ink)]">2 / 3</span>
+              <span className="font-mono text-[var(--ink)]">2 / 2</span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--surface-0)] overflow-hidden">
-              <div className="h-full bg-[var(--warning)] rounded-full transition-all" style={{ width: "66.7%" }}></div>
+              <div className="h-full bg-[var(--warning)] rounded-full transition-all" style={{ width: "100%" }}></div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)] font-mono">2 of 3 projects allocated</div>
+            <div className="text-[11px] text-[var(--ink-3)] font-mono">2 of 2 projects allocated</div>
           </div>
 
           {/* Log Retention */}
@@ -256,7 +259,6 @@ export default function WorkspaceBillingPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {TIERS.map((tier) => {
             const isCurrent = activePlan === tier.id;
-            const price = billingCycle === "annual" ? Math.round(tier.price * 0.8) : tier.price;
 
             return (
               <div
@@ -287,8 +289,8 @@ export default function WorkspaceBillingPage() {
                   </div>
 
                   <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-extrabold text-[var(--ink)] font-mono">${price}</span>
-                    <span className="text-xs text-[var(--ink-3)]">/ month</span>
+                    <span className="text-3xl font-extrabold text-[var(--ink)] font-mono">{tier.priceDisplay}</span>
+                    <span className="text-xs text-[var(--ink-3)] ml-1">{tier.periodDisplay}</span>
                   </div>
 
                   {/* Tier Limits Table */}

@@ -18,7 +18,7 @@ export default function PricingPage() {
     },
     {
       q: "Can I use MockLab for free without a credit card?",
-      a: "Yes. The Free Developer tier is free forever and includes 5,000 mock requests/month, 100 contract runs, 14-day request logs, and 2 API keys. No credit card required.",
+      a: "Yes. The Free Developer tier is free forever and includes 5,000 mock requests/month, 100 contract runs, 7-day request logs, and 2 API keys. No credit card required.",
     },
     {
       q: "What is stateful bucket mocking?",
@@ -73,7 +73,7 @@ export default function PricingPage() {
               </li>
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-[var(--signal)] shrink-0" />
-                <span><strong>14-day</strong> logs (2,500 rows max)</span>
+                <span><strong>7-day</strong> logs (2,500 rows max)</span>
               </li>
               <li className="flex items-center gap-2">
                 <Check className="w-4 h-4 text-[var(--signal)] shrink-0" />
@@ -246,7 +246,7 @@ export default function PricingPage() {
               </tr>
               <tr>
                 <td className="p-4 font-medium">Log Retention</td>
-                <td className="p-4">14 days (2,500 rows)</td>
+                <td className="p-4">7 days (2,500 rows)</td>
                 <td className="p-4 font-semibold text-[var(--signal)]">60 days</td>
                 <td className="p-4">90 days</td>
               </tr>
