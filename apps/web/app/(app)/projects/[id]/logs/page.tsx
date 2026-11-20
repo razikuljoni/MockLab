@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { getApiBaseUrl } from "../../../../../lib/api";
 import {
   Activity,
   Search,
@@ -60,6 +61,27 @@ export default function TrafficInspectorPage() {
   const [selectedLog, setSelectedLog] = useState<RequestLogItem | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [ruleCreatedSuccess, setRuleCreatedSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const token = localStorage.getItem("mocklab_token");
+        const apiBase = getApiBaseUrl();
+        const res = await fetch(`${apiBase}/api/v1/projects/${projectId}/logs`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setLogs(data);
+          }
+        }
+      } catch {
+        // Fall back to seed demo logs
+      }
+    };
+    fetchLogs();
+  }, [projectId]);
 
   // Sample seed data reflecting real mock traffic (§6.4)
   const [logs, setLogs] = useState<RequestLogItem[]>([

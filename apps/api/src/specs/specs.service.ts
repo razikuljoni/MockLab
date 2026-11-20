@@ -10,16 +10,110 @@ import { SpecParserUtil, SpecValidationIssue } from "./spec-parser.util";
 export class SpecsService {
   constructor(private readonly dataStore: DataStoreService) {}
 
+  async fetchSpecFromUrl(urlStr: string): Promise<string> {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(urlStr);
+    } catch {
+      throw new BadRequestException("Invalid spec URL format");
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      throw new BadRequestException("Only http and https protocols are supported for spec URLs");
+    }
+
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    // SSRF Guard: Block localhost, loopbacks, internal/private IPv4 and metadata addresses
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0" ||
+      hostname === "169.254.169.254" ||
+      hostname.endsWith(".internal") ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".localhost")
+    ) {
+      throw new BadRequestException("Access to loopback, local or metadata IPs is forbidden");
+    }
+
+    // Check private IPv4 ranges: 10.x.x.x, 172.16-31.x.x, 192.168.x.x, 169.254.x.x
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const match = hostname.match(ipv4Regex);
+    if (match) {
+      const octet1 = parseInt(match[1], 10);
+      const octet2 = parseInt(match[2], 10);
+      if (
+        octet1 === 10 ||
+        octet1 === 127 ||
+        (octet1 === 172 && octet2 >= 16 && octet2 <= 31) ||
+        (octet1 === 192 && octet2 === 168) ||
+        (octet1 === 169 && octet2 === 254) ||
+        octet1 === 0
+      ) {
+        throw new BadRequestException("Access to private/internal network addresses is forbidden");
+      }
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const res = await fetch(urlStr, {
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json, application/x-yaml, text/yaml, text/plain, */*",
+          "User-Agent": "MockLab-SpecFetcher/1.0",
+        },
+      });
+
+      if (!res.ok) {
+        throw new BadRequestException(
+          `Failed to fetch spec from URL: HTTP ${res.status} ${res.statusText}`
+        );
+      }
+
+      const contentLength = res.headers.get("content-length");
+      if (contentLength && parseInt(contentLength, 10) > 5 * 1024 * 1024) {
+        throw new BadRequestException("OpenAPI spec size exceeds 5MB limit");
+      }
+
+      const text = await res.text();
+      if (text.length > 5 * 1024 * 1024) {
+        throw new BadRequestException("OpenAPI spec size exceeds 5MB limit");
+      }
+
+      return text;
+    } catch (err: unknown) {
+      if ((err as Error)?.name === "AbortError") {
+        throw new BadRequestException("Fetch request timed out after 10 seconds");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async importSpec(
     projectId: string,
-    rawSpec: string,
+    rawSpec?: string,
     sourceUrl?: string
   ) {
     const project = await this.dataStore.findProjectById(projectId);
     if (!project) throw new NotFoundException("Project not found");
 
+    let specText = rawSpec;
+    if (!specText && sourceUrl) {
+      specText = await this.fetchSpecFromUrl(sourceUrl);
+    }
+
+    if (!specText || typeof specText !== "string") {
+      throw new BadRequestException("No spec content provided or fetched");
+    }
+
     // 1. Parse YAML / JSON
-    const { data, error: parseError } = SpecParserUtil.parseYamlOrJson(rawSpec);
+    const { data, error: parseError } = SpecParserUtil.parseYamlOrJson(specText);
     if (parseError) {
       throw new BadRequestException({
         message: "Spec syntax parse failure",
@@ -42,7 +136,7 @@ export class SpecsService {
     issues.push(...derefErrors);
 
     // 4. Compute Hash & Version
-    const hash = SpecParserUtil.computeHash(rawSpec);
+    const hash = SpecParserUtil.computeHash(specText);
     const latestSpec = await this.dataStore.getLatestSpecVersion(projectId);
     const versionNumber = latestSpec ? latestSpec.version + 1 : 1;
 

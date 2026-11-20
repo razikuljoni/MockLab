@@ -20,13 +20,13 @@ export class SpecsController {
   @Post("spec/import")
   async importSpec(
     @Param("projectId") projectId: string,
-    @Body("rawSpec") rawSpec: string,
+    @Body("rawSpec") rawSpec?: string,
     @Body("sourceUrl") sourceUrl?: string
   ) {
-    if (!rawSpec || typeof rawSpec !== "string") {
-      throw new BadRequestException("rawSpec must be provided as a non-empty string");
+    if ((!rawSpec || typeof rawSpec !== "string") && (!sourceUrl || typeof sourceUrl !== "string")) {
+      throw new BadRequestException("Either rawSpec string or sourceUrl must be provided");
     }
-    return this.specsService.importSpec(projectId, rawSpec, sourceUrl);
+    return this.specsService.importSpec(projectId, rawSpec || "", sourceUrl);
   }
 
   @Get("endpoints")

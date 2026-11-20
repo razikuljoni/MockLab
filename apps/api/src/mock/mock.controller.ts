@@ -168,7 +168,7 @@ export class MockController {
 
     if (keyVal && keyVal.valid) {
       limit = keyVal.limit || 100;
-      remaining = keyVal.remaining ?? 99;
+      remaining = typeof keyVal.remaining === "number" ? keyVal.remaining : Math.max(0, limit - 1);
       resetSec = keyVal.resetSec || 60;
     } else {
       const clientIp = (req.headers["x-forwarded-for"] as string) || req.ip || "127.0.0.1";
