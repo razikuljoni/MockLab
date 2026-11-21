@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { DataStoreService } from "../prisma/data-store.service";
 import { ApiKeysService } from "./api-keys.service";
 import { ApiKeysController } from "./api-keys.controller";
@@ -349,5 +349,74 @@ describe("Phase 10 API Keys, Rate Limits, Teams, Billing & Settings Acceptance S
     const v4 = await apiKeysService.validateAndRateLimit(rawKey);
     expect(v4.rateLimited).toBe(true);
     expect(v4.error).toContain("Monthly quota of 3 requests exceeded");
+  });
+
+  it("7. Rate limit window decrements remaining count with each request (§R3)", async () => {
+    const { rawKey } = await apiKeysService.createKey(workspace.id, {
+      name: "Decrement Test Key",
+      rateLimitPerMin: 10,
+    });
+
+    const v1 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v1.rateLimited).toBe(false);
+    expect(v1.remaining).toBe(9);
+
+    const v2 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v2.rateLimited).toBe(false);
+    expect(v2.remaining).toBe(8);
+
+    const v3 = await apiKeysService.validateAndRateLimit(rawKey);
+    expect(v3.rateLimited).toBe(false);
+    expect(v3.remaining).toBe(7);
+  });
+
+  it("8. Rate limit and quota counters survive API restart via Redis backing (§R3)", async () => {
+    // Shared Redis storage representing persistent external Redis server
+    const redisStore = new Map<string, number>();
+    const mockRedis = {
+      incr: vi.fn(async (key: string) => {
+        const current = (redisStore.get(key) || 0) + 1;
+        redisStore.set(key, current);
+        return current;
+      }),
+      expire: vi.fn(async () => 1),
+      quit: vi.fn(async () => "OK"),
+    } as any;
+
+    const { rawKey } = await apiKeysService.createKey(workspace.id, {
+      name: "Restart Key",
+      rateLimitPerMin: 5,
+    });
+
+    // Instance 1 before restart
+    const service1 = new ApiKeysService(dataStore, mockRedis);
+    const r1 = await service1.validateAndRateLimit(rawKey);
+    expect(r1.rateLimited).toBe(false);
+    expect(r1.remaining).toBe(4);
+
+    const r2 = await service1.validateAndRateLimit(rawKey);
+    expect(r2.rateLimited).toBe(false);
+    expect(r2.remaining).toBe(3);
+
+    // Simulate API process restart: service1 destroyed, service2 initialized
+    await service1.onModuleDestroy();
+    const service2 = new ApiKeysService(dataStore, mockRedis);
+
+    // Request on restarted service must continue from previous Redis counter
+    const r3 = await service2.validateAndRateLimit(rawKey);
+    expect(r3.rateLimited).toBe(false);
+    expect(r3.remaining).toBe(2);
+
+    const r4 = await service2.validateAndRateLimit(rawKey);
+    expect(r4.remaining).toBe(1);
+
+    const r5 = await service2.validateAndRateLimit(rawKey);
+    expect(r5.remaining).toBe(0);
+
+    // 6th request exceeded -> 429
+    const r6 = await service2.validateAndRateLimit(rawKey);
+    expect(r6.rateLimited).toBe(true);
+    expect(r6.remaining).toBe(0);
+    expect(r6.error).toContain("Rate limit of 5 req/min exceeded");
   });
 });

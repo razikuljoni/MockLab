@@ -18,7 +18,6 @@ import { ProjectStatus, MockAuth } from "@prisma/client";
 @Controller()
 export class MockController {
   private readonly logger = new Logger(MockController.name);
-  private readonly publicRateLimitWindows = new Map<string, { windowStart: number; count: number }>();
 
   constructor(
     private readonly dataStore: DataStoreService,
@@ -161,31 +160,26 @@ export class MockController {
     const rawScenario = (req.headers["x-mocklab-scenario"] as string) || (req.query?._scenario as string) || "default";
     const scenarioKey = rawScenario.trim().toLowerCase();
 
-    // Dynamic Rate Limiting & Counters (§9.3, §10 Done when)
+    // Dynamic Rate Limiting & Counters in Redis (§R3)
     let limit = 100;
-    let remaining = 99;
+    let remaining = 100;
     let resetSec = 60;
 
     if (keyVal && keyVal.valid) {
-      limit = keyVal.limit || 100;
-      remaining = typeof keyVal.remaining === "number" ? keyVal.remaining : Math.max(0, limit - 1);
-      resetSec = keyVal.resetSec || 60;
-    } else {
-      const clientIp = (req.headers["x-forwarded-for"] as string) || req.ip || "127.0.0.1";
-      const now = Date.now();
-      let win = this.publicRateLimitWindows.get(clientIp);
-      if (!win || now - win.windowStart >= 60000) {
-        win = { windowStart: now, count: 1 };
-        this.publicRateLimitWindows.set(clientIp, win);
-      } else {
-        win.count++;
-      }
-      limit = 100;
-      remaining = Math.max(0, limit - win.count);
-      resetSec = Math.max(1, Math.ceil((win.windowStart + 60000 - now) / 1000));
+      limit = keyVal.limit ?? 100;
+      remaining = typeof keyVal.remaining === "number" ? keyVal.remaining : limit;
+      resetSec = keyVal.resetSec ?? 60;
+    } else if (this.apiKeysService) {
+      const rawForwarded = req.headers["x-forwarded-for"];
+      const clientIp = (Array.isArray(rawForwarded) ? rawForwarded[0] : rawForwarded)?.split(",")[0].trim() || req.ip || "127.0.0.1";
+      const publicLimit = 100;
+      const rateCheck = await this.apiKeysService.consumeRateLimit(`ratelimit:ip:${clientIp}`, publicLimit, 60);
+      limit = publicLimit;
+      remaining = rateCheck.remaining;
+      resetSec = rateCheck.resetSec;
 
       if (
-        win.count > limit &&
+        rateCheck.exceeded &&
         (process.env.NODE_ENV !== "test" || req.headers["x-test-ratelimit"])
       ) {
         res.setHeader("Retry-After", String(resetSec));
