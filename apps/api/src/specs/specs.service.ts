@@ -119,9 +119,25 @@ export class SpecsService {
       const maxRedirects = 3;
 
       while (redirectCount <= maxRedirects) {
-        await this.validateSafeUrl(currentUrl);
+        const validatedUrl = await this.validateSafeUrl(currentUrl);
 
-        const res = await fetch(currentUrl, {
+        // Explicit inline protocol & loopback guard so static security analysis (CodeQL) recognizes sanitization
+        if (validatedUrl.protocol !== "http:" && validatedUrl.protocol !== "https:") {
+          throw new BadRequestException("Only http and https protocols are supported for spec URLs");
+        }
+        const safeHostname = validatedUrl.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+        if (
+          safeHostname === "localhost" ||
+          safeHostname === "127.0.0.1" ||
+          safeHostname === "::1" ||
+          safeHostname.endsWith(".internal") ||
+          safeHostname.endsWith(".local") ||
+          safeHostname.endsWith(".localhost")
+        ) {
+          throw new BadRequestException("Access to loopback, local or metadata IPs is forbidden");
+        }
+
+        const res = await fetch(validatedUrl.href, {
           signal: controller.signal,
           redirect: "manual",
           headers: {
