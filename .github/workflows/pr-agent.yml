@@ -1,0 +1,35 @@
+name: PR Agent
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  pr_agent_job:
+    if: ${{ github.event.sender.type != 'Bot' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for AI API key
+        id: check_key
+        run: |
+          if [ -n "${{ secrets.OPENAI_KEY }}" ] || [ -n "${{ secrets.GEMINI_API_KEY }}" ]; then
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_key=false" >> $GITHUB_OUTPUT
+            echo "Neither OPENAI_KEY nor GEMINI_API_KEY secret configured in repo secrets. Skipping PR Agent."
+          fi
+
+      - name: Run PR Agent
+        if: steps.check_key.outputs.has_key == 'true'
+        uses: the-pr-agent/pr-agent@main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+          GOOGLE_AI_STUDIO.GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

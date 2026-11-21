@@ -1,5 +1,6 @@
-import { Injectable, Logger, NotFoundException, UnauthorizedException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, OnModuleInit, OnModuleDestroy, Optional } from "@nestjs/common";
 import { DataStoreService, ApiKeyRecord } from "../prisma/data-store.service";
+import Redis from "ioredis";
 import * as crypto from "node:crypto";
 
 export interface CreateApiKeyDto {
@@ -11,15 +12,139 @@ export interface CreateApiKeyDto {
 }
 
 @Injectable()
-export class ApiKeysService {
+export class ApiKeysService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ApiKeysService.name);
+  private redisClient: Redis | null = null;
+  public isRedisActive = false;
 
-  // In-memory sliding window rate-limit tracker: keyId -> { windowStart, count }
-  private rateLimitWindows = new Map<string, { windowStart: number; count: number }>();
-  // Monthly quota tracker: keyId:YYYY-MM -> count
-  private monthlyQuotaUsage = new Map<string, number>();
+  // Resilient fallback storage when Redis is unavailable (e.g. unit tests without Redis)
+  private fallbackCounters = new Map<string, { count: number; expiresAt: number }>();
 
-  constructor(private readonly dataStore: DataStoreService) {}
+  constructor(
+    private readonly dataStore: DataStoreService,
+    @Optional() redisClientOverride?: Redis
+  ) {
+    if (redisClientOverride) {
+      this.redisClient = redisClientOverride;
+      this.isRedisActive = true;
+    }
+  }
+
+  async onModuleInit() {
+    if (this.redisClient) return;
+    const redisUrl = process.env.REDIS_URL;
+    if (!redisUrl) {
+      this.logger.log("REDIS_URL not configured. Operating API key rate limits in fallback mode.");
+      return;
+    }
+
+    try {
+      this.redisClient = new Redis(redisUrl, {
+        connectTimeout: 2000,
+        maxRetriesPerRequest: null,
+        lazyConnect: true,
+        retryStrategy: () => null,
+      });
+      await this.redisClient.connect();
+      this.isRedisActive = true;
+      this.logger.log("Redis connected for persistent rate limits and monthly quotas.");
+    } catch (err: any) {
+      this.logger.warn(`Redis rate-limit connection failed (${err.message}). Using fallback.`);
+      this.isRedisActive = false;
+      this.redisClient = null;
+    }
+  }
+
+  async onModuleDestroy() {
+    if (this.redisClient) {
+      try {
+        await this.redisClient.quit();
+      } catch {}
+      this.redisClient = null;
+      this.isRedisActive = false;
+    }
+  }
+
+  /**
+   * Consumes 1 request token for a given identifier key in a fixed window.
+   * State persists in Redis across API restarts (§R3).
+   */
+  async consumeRateLimit(
+    identifierKey: string,
+    limit: number,
+    windowSec: number = 60
+  ): Promise<{ count: number; remaining: number; resetSec: number; exceeded: boolean }> {
+    const now = Math.floor(Date.now() / 1000);
+    const windowBucket = Math.floor(now / windowSec);
+    const redisKey = `${identifierKey}:${windowBucket}`;
+    const resetSec = Math.max(1, (windowBucket + 1) * windowSec - now);
+
+    let count = 1;
+
+    if (this.isRedisActive && this.redisClient) {
+      try {
+        count = await this.redisClient.incr(redisKey);
+        if (count === 1) {
+          await this.redisClient.expire(redisKey, windowSec + 5);
+        }
+      } catch (err: any) {
+        this.logger.warn(`Redis incr error (${err.message}). Using fallback.`);
+        count = this.fallbackIncr(redisKey, windowSec + 5);
+      }
+    } else {
+      count = this.fallbackIncr(redisKey, windowSec + 5);
+    }
+
+    const remaining = Math.max(0, limit - count);
+    const exceeded = count > limit;
+
+    return { count, remaining, resetSec, exceeded };
+  }
+
+  /**
+   * Increments monthly quota counter for a key in Redis (§R3).
+   */
+  async consumeMonthlyQuota(
+    keyId: string,
+    monthlyQuota: number
+  ): Promise<{ current: number; exceeded: boolean }> {
+    const d = new Date();
+    const monthStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const redisKey = `quota:key:${keyId}:${monthStr}`;
+    const expireSec = 35 * 86400; // 35 days
+
+    let current = 1;
+
+    if (this.isRedisActive && this.redisClient) {
+      try {
+        current = await this.redisClient.incr(redisKey);
+        if (current === 1) {
+          await this.redisClient.expire(redisKey, expireSec);
+        }
+      } catch (err: any) {
+        this.logger.warn(`Redis quota incr error (${err.message}). Using fallback.`);
+        current = this.fallbackIncr(redisKey, expireSec);
+      }
+    } else {
+      current = this.fallbackIncr(redisKey, expireSec);
+    }
+
+    return {
+      current,
+      exceeded: monthlyQuota > 0 && current > monthlyQuota,
+    };
+  }
+
+  private fallbackIncr(key: string, ttlSec: number): number {
+    const now = Date.now();
+    const existing = this.fallbackCounters.get(key);
+    if (!existing || now >= existing.expiresAt) {
+      this.fallbackCounters.set(key, { count: 1, expiresAt: now + ttlSec * 1000 });
+      return 1;
+    }
+    existing.count += 1;
+    return existing.count;
+  }
 
   /**
    * Generates a Stripe-style API key (shown ONCE at creation, stored only as SHA-256 hash) (§6.7)
@@ -74,7 +199,7 @@ export class ApiKeysService {
   }
 
   /**
-   * Validates raw key and enforces per-key rate limit (§6.7 & §10)
+   * Validates raw key and enforces per-key rate limit & quotas via Redis (§6.7, §R3 & §10)
    */
   async validateAndRateLimit(rawKey: string): Promise<{
     valid: boolean;
@@ -98,47 +223,38 @@ export class ApiKeysService {
       return { valid: false, rateLimited: false, error: "API key has been revoked" };
     }
 
-    // Monthly Quota Enforcement (§6.7, §9.3 & §10)
-    const monthKey = `${key.id}:${new Date().getUTCFullYear()}-${new Date().getUTCMonth() + 1}`;
-    const currentMonthly = (this.monthlyQuotaUsage.get(monthKey) || 0) + 1;
-    this.monthlyQuotaUsage.set(monthKey, currentMonthly);
+    // Monthly Quota Enforcement in Redis (§R3)
+    if (key.monthlyQuota && key.monthlyQuota > 0) {
+      const quotaResult = await this.consumeMonthlyQuota(key.id, key.monthlyQuota);
+      if (quotaResult.exceeded) {
+        return {
+          valid: true,
+          rateLimited: true,
+          key,
+          limit: key.rateLimitPerMin,
+          remaining: 0,
+          resetSec: 3600,
+          error: `Monthly quota of ${key.monthlyQuota} requests exceeded for this API key`,
+        };
+      }
+    }
 
-    if (key.monthlyQuota && key.monthlyQuota > 0 && currentMonthly > key.monthlyQuota) {
+    // Sliding Window Rate Limiting in Redis (§R3)
+    const { count, remaining, resetSec, exceeded } = await this.consumeRateLimit(
+      `ratelimit:key:${key.id}`,
+      key.rateLimitPerMin,
+      60
+    );
+
+    if (exceeded) {
       return {
         valid: true,
         rateLimited: true,
         key,
         limit: key.rateLimitPerMin,
         remaining: 0,
-        resetSec: 3600,
-        error: `Monthly quota of ${key.monthlyQuota} requests exceeded for this API key`,
-      };
-    }
-
-    // Rate Limiting (Sliding Window 60s)
-    const now = Date.now();
-    let window = this.rateLimitWindows.get(key.id);
-
-    if (!window || now - window.windowStart >= 60000) {
-      window = { windowStart: now, count: 1 };
-      this.rateLimitWindows.set(key.id, window);
-    } else {
-      window.count++;
-    }
-
-    const resetSec = Math.max(1, Math.ceil((window.windowStart + 60000 - now) / 1000));
-    const limit = key.rateLimitPerMin;
-    const remaining = Math.max(0, limit - window.count);
-
-    if (window.count > limit) {
-      return {
-        valid: true,
-        rateLimited: true,
-        key,
-        limit,
-        remaining: 0,
         resetSec,
-        error: `Rate limit of ${limit} req/min exceeded (Too Many Requests)`,
+        error: `Rate limit of ${key.rateLimitPerMin} req/min exceeded (Too Many Requests)`,
       };
     }
 
@@ -149,7 +265,7 @@ export class ApiKeysService {
       valid: true,
       rateLimited: false,
       key,
-      limit,
+      limit: key.rateLimitPerMin,
       remaining,
       resetSec,
     };
