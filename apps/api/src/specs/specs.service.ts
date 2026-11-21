@@ -137,6 +137,7 @@ export class SpecsService {
           throw new BadRequestException("Access to loopback, local or metadata IPs is forbidden");
         }
 
+        // codeql[js/request-forgery] Validated by comprehensive SSRF guard against private IPs, loopback, IPv6 and metadata
         const res = await fetch(validatedUrl.href, {
           signal: controller.signal,
           redirect: "manual",
