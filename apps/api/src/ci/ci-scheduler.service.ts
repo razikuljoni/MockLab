@@ -9,8 +9,6 @@ import { Verdict } from "@prisma/client";
 @Injectable()
 export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(CiSchedulerService.name);
-  private timer: NodeJS.Timeout | null = null;
-  private readonly CHECK_INTERVAL_MS = 60000;
 
   constructor(
     private readonly dataStore: DataStoreService,
@@ -22,23 +20,12 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (this.queueService) {
       this.queueService.registerContractRunProcessor(async (job) => {
-        await this.executeJob(job.projectId, job.triggeredBy, undefined, job.runId);
+        await this.executeJob(job.projectId, job.triggeredBy, job.scheduleId, job.runId);
       });
     }
-
-    this.timer = setInterval(() => {
-      this.sweepDueSchedules().catch((err) =>
-        this.logger.error(`Error in schedule sweeper: ${err.message}`)
-      );
-    }, this.CHECK_INTERVAL_MS);
   }
 
-  onModuleDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
+  onModuleDestroy() {}
 
   @Cron(CronExpression.EVERY_MINUTE)
   async sweepDueSchedules(): Promise<number> {
@@ -67,12 +54,19 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
 
     this.logger.log(`Enqueueing scheduled contract run for schedule '${sched.name}'`);
 
+    // Advance nextRunAt immediately on enqueue to prevent re-trigger loop (§R2)
+    const nextRun = new Date(Date.now() + 3600000);
+    await this.dataStore.updateContractSchedule(sched.id, {
+      nextRunAt: nextRun,
+    });
+
     if (this.queueService) {
       const runId = `run_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
       await this.queueService.enqueueContractRun({
         runId,
         projectId: sched.projectId,
         triggeredBy: `schedule:${sched.name}`,
+        scheduleId: sched.id,
       });
       return { status: "enqueued", runId };
     }
@@ -110,12 +104,9 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (scheduleId) {
-      // Schedule next run (e.g. 1 hour later)
-      const nextRun = new Date(Date.now() + 3600000);
       await this.dataStore.updateContractSchedule(scheduleId, {
         lastRunId: runResult.id,
         lastVerdict: verdict,
-        nextRunAt: nextRun,
       });
     }
 

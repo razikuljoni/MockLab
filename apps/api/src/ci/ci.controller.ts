@@ -10,11 +10,14 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  Optional,
+  NotFoundException,
 } from "@nestjs/common";
 import { Response } from "express";
 import { ContractRunnerService, RunContractOptions } from "../contracts/contract-runner.service";
 import { CiSchedulerService } from "./ci-scheduler.service";
 import { DataStoreService } from "../prisma/data-store.service";
+import { ProductionQueueService } from "../queue/production-queue.service";
 import { RunStatus, Verdict } from "@prisma/client";
 
 @Controller("api/v1/projects/:id")
@@ -22,50 +25,64 @@ export class CiController {
   constructor(
     private readonly runnerService: ContractRunnerService,
     private readonly schedulerService: CiSchedulerService,
-    private readonly dataStore: DataStoreService
+    private readonly dataStore: DataStoreService,
+    @Optional() private readonly queueService?: ProductionQueueService
   ) {}
 
   /**
    * External CI Trigger Endpoint (§6.8 & §10)
    * Invoked by GitHub Actions, GitLab CI, or cURL.
+   * Asynchronous execution returning HTTP 202 with pollUrl.
    */
   @Post("contract-runs")
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   async triggerCiContractRun(
     @Param("id") projectId: string,
     @Body() options?: RunContractOptions,
-    @Res() res?: Response
+    @Res({ passthrough: true }) res?: Response
   ) {
-    const runResult = await this.runnerService.runSuite(projectId, {
-      ...options,
-      triggeredBy: options?.triggeredBy || "ci:external",
+    const project = await this.dataStore.findProjectById(projectId);
+    if (!project) throw new NotFoundException("Project not found");
+
+    const spec = await this.dataStore.getLatestSpecVersion(projectId);
+    const specHash = spec?.hash || "spec_v1_initial";
+
+    const triggeredBy = options?.triggeredBy || "ci:external";
+    const runRecord = await this.dataStore.createContractRun({
+      projectId,
+      specHash,
+      providerUrl: options?.providerUrlOverride ?? project.realProviderUrl ?? "mock",
+      status: RunStatus.PENDING,
+      triggeredBy,
+      durationMs: 0,
+      results: [],
     });
 
-    const isFailing = runResult.status === RunStatus.FAIL_BREAKING;
-    const responsePayload = {
-      passed: !isFailing && runResult.status === RunStatus.PASS,
-      status: runResult.status,
-      runId: runResult.id,
-      specHash: runResult.specHash,
-      durationMs: runResult.durationMs,
-      summary: {
-        total: runResult.results.length,
-        pass: runResult.results.filter((r) => r.verdict === Verdict.PASS).length,
-        breaking: runResult.results.filter((r) => r.verdict === Verdict.BREAKING).length,
-        nonBreaking: runResult.results.filter((r) => r.verdict === Verdict.NON_BREAKING).length,
-        error: runResult.results.filter((r) => r.verdict === Verdict.ERROR).length,
-      },
-    };
-
-    if (res) {
-      // If breaking changes detected, send 400 or payload with failure indication so CI exits non-zero
-      if (isFailing) {
-        return res.status(HttpStatus.BAD_REQUEST).json(responsePayload);
-      }
-      return res.status(HttpStatus.OK).json(responsePayload);
+    if (this.queueService) {
+      await this.queueService.enqueueContractRun({
+        runId: runRecord.id,
+        projectId,
+        triggeredBy,
+        providerUrlOverride: options?.providerUrlOverride,
+        providerAuthOverride: options?.providerAuthOverride,
+      });
+    } else {
+      setImmediate(() => {
+        this.runnerService
+          .runSuite(projectId, { ...options, triggeredBy, runId: runRecord.id })
+          .catch((err) => console.error("Async CI contract run worker error:", err));
+      });
     }
 
-    return responsePayload;
+    if (res) {
+      res.status(HttpStatus.ACCEPTED);
+    }
+
+    return {
+      status: "accepted",
+      runId: runRecord.id,
+      pollUrl: `/api/v1/projects/${projectId}/contracts/runs/${runRecord.id}`,
+    };
   }
 
   /**
