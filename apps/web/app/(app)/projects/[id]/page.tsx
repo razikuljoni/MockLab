@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
   Copy,
@@ -13,22 +13,45 @@ import {
   Activity,
   UploadCloud,
   FileCheck2,
-  Sliders,
   CheckCircle2,
-  Clock,
   ExternalLink,
 } from "lucide-react";
+import { apiRequest, getApiBaseUrl } from "../../../../lib/api";
 
 export default function ProjectOverviewPage() {
   const params = useParams();
   const projectId = (params?.id as string) || "petstore";
 
-  const [isLive, setIsLive] = useState(true);
+  const [project, setProject] = useState<any>(null);
+  const [endpoints, setEndpoints] = useState<any[]>([]);
+  const [rules, setRules] = useState<any[]>([]);
+  const [recentLogs, setRecentLogs] = useState<any[]>([]);
   const [copied, setCopied] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
 
-  const mockUrl = `https://${projectId}.mocklab.dev`;
+  const loadProjectOverview = async () => {
+    const [pRes, epRes, rRes, lRes] = await Promise.all([
+      apiRequest<any>(`/api/v1/projects/${projectId}`),
+      apiRequest<any>(`/api/v1/projects/${projectId}/endpoints`),
+      apiRequest<any>(`/api/v1/projects/${projectId}/rules`),
+      apiRequest<any>(`/api/v1/projects/${projectId}/logs?limit=5`),
+    ]);
+
+    if (pRes.data) setProject(pRes.data);
+    if (epRes.data?.endpoints) setEndpoints(epRes.data.endpoints);
+    if (rRes.data && Array.isArray(rRes.data)) setRules(rRes.data);
+    if (lRes.data?.logs && Array.isArray(lRes.data.logs)) setRecentLogs(lRes.data.logs);
+  };
+
+  useEffect(() => {
+    loadProjectOverview();
+  }, [projectId]);
+
+  const isLive = project?.status !== "PAUSED";
+  const apiBase = getApiBaseUrl();
+  const slug = project?.slug || projectId;
+  const mockUrl = `${apiBase}/m/${slug}`;
 
   const copyUrl = () => {
     navigator.clipboard.writeText(mockUrl);
@@ -36,13 +59,24 @@ export default function ProjectOverviewPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleResetState = () => {
+  const handleToggleStatus = async () => {
+    const nextStatus = isLive ? "PAUSED" : "LIVE";
+    await apiRequest(`/api/v1/projects/${projectId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    setProject((prev: any) => ({ ...prev, status: nextStatus }));
+  };
+
+  const handleResetState = async () => {
     setResetting(true);
-    setTimeout(() => {
-      setResetting(false);
-      setResetMessage("Scenario bucket state cleared successfully");
-      setTimeout(() => setResetMessage(null), 3000);
-    }, 600);
+    await apiRequest(`/api/v1/projects/${projectId}/scenarios/reset`, {
+      method: "POST",
+      body: JSON.stringify({ scenarioKey: "default" }),
+    });
+    setResetting(false);
+    setResetMessage("Scenario bucket state cleared successfully");
+    setTimeout(() => setResetMessage(null), 3000);
   };
 
   return (
@@ -52,7 +86,7 @@ export default function ProjectOverviewPage() {
         <div className="space-y-1">
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold text-[var(--ink)] capitalize">
-              {projectId} Project
+              {project?.name || `${projectId} Project`}
             </h1>
             <span
               className={`px-2 py-0.5 rounded text-[11px] font-semibold flex items-center gap-1 ${
@@ -71,7 +105,7 @@ export default function ProjectOverviewPage() {
           </div>
 
           <div className="flex items-center gap-2 text-xs font-mono text-[var(--ink-2)]">
-            <span>{mockUrl}</span>
+            <span className="break-all">{mockUrl}</span>
             <button
               onClick={copyUrl}
               className="p-1 rounded hover:bg-[var(--surface-2)] text-[var(--ink-3)] hover:text-[var(--ink)]"
@@ -87,9 +121,9 @@ export default function ProjectOverviewPage() {
         </div>
 
         <div className="flex items-center gap-3 text-xs">
-          {/* Live / Paused toggle (§9.4) */}
+          {/* Live / Paused toggle */}
           <button
-            onClick={() => setIsLive(!isLive)}
+            onClick={handleToggleStatus}
             className={`px-3 py-1.5 rounded-md border border-[var(--border)] font-medium flex items-center gap-1.5 transition-colors ${
               isLive
                 ? "bg-[var(--surface-1)] text-[var(--ink)] hover:bg-[var(--surface-2)]"
@@ -100,7 +134,7 @@ export default function ProjectOverviewPage() {
             <span>{isLive ? "Pause Mock Server" : "Resume Mock Server"}</span>
           </button>
 
-          {/* Reset State Button (§6.5) */}
+          {/* Reset State Button */}
           <button
             onClick={handleResetState}
             disabled={resetting}
@@ -123,26 +157,28 @@ export default function ProjectOverviewPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-1">
           <span className="text-[11px] text-[var(--ink-3)] uppercase tracking-wider font-mono">
-            Total Requests (24h)
+            Endpoints
           </span>
-          <div className="text-2xl font-bold font-mono text-[var(--ink)]">42,910</div>
-          <span className="text-[10px] text-[var(--success)]">↑ 12% vs yesterday</span>
-        </div>
-
-        <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-1">
-          <span className="text-[11px] text-[var(--ink-3)] uppercase tracking-wider font-mono">
-            P50 Response Time
-          </span>
-          <div className="text-2xl font-bold font-mono text-[var(--signal)]">38 ms</div>
-          <span className="text-[10px] text-[var(--ink-3)]">Excluding injected delay</span>
+          <div className="text-2xl font-bold font-mono text-[var(--ink)]">{endpoints.length}</div>
+          <span className="text-[10px] text-[var(--ink-3)]">Extracted from spec</span>
         </div>
 
         <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-1">
           <span className="text-[11px] text-[var(--ink-3)] uppercase tracking-wider font-mono">
             Active Mock Rules
           </span>
-          <div className="text-2xl font-bold font-mono text-[var(--ink)]">12</div>
-          <span className="text-[10px] text-[var(--ink-3)]">Across 8 endpoints</span>
+          <div className="text-2xl font-bold font-mono text-[var(--signal)]">{rules.length}</div>
+          <span className="text-[10px] text-[var(--ink-3)]">
+            Across {endpoints.length} endpoint{endpoints.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-1">
+          <span className="text-[11px] text-[var(--ink-3)] uppercase tracking-wider font-mono">
+            Traffic Logs
+          </span>
+          <div className="text-2xl font-bold font-mono text-[var(--ink)]">{recentLogs.length}</div>
+          <span className="text-[10px] text-[var(--ink-3)]">Buffered events</span>
         </div>
 
         <div className="p-5 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-1">
@@ -151,9 +187,9 @@ export default function ProjectOverviewPage() {
           </span>
           <div className="text-2xl font-bold text-[var(--success)] flex items-center gap-1.5">
             <CheckCircle2 className="w-6 h-6" />
-            <span>PASS</span>
+            <span>{project?.contractStatus || "PASS"}</span>
           </div>
-          <span className="text-[10px] text-[var(--ink-3)]">Last verified 18m ago</span>
+          <span className="text-[10px] text-[var(--ink-3)]">CI contract verified</span>
         </div>
       </div>
 
@@ -217,7 +253,7 @@ export default function ProjectOverviewPage() {
         {/* Endpoints Summary */}
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Endpoints by Tag</h2>
+            <h2 className="text-sm font-semibold text-[var(--ink)]">Endpoints Summary</h2>
             <Link
               href={`/projects/${projectId}/endpoints`}
               className="text-xs text-[var(--signal)] hover:underline flex items-center gap-1"
@@ -228,45 +264,28 @@ export default function ProjectOverviewPage() {
           </div>
 
           <div className="space-y-2 text-xs font-mono">
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#4ADE80]/15 text-[#4ADE80]">
-                  GET
-                </span>
-                <span className="text-[var(--ink)]">/pets</span>
-              </div>
-              <span className="text-[var(--ink-3)] text-[11px]">List pets · 3 rules</span>
-            </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FACC15]/15 text-[#FACC15]">
-                  POST
-                </span>
-                <span className="text-[var(--ink)]">/pets</span>
-              </div>
-              <span className="text-[var(--ink-3)] text-[11px]">Create pet · 2 rules</span>
-            </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#4ADE80]/15 text-[#4ADE80]">
-                  GET
-                </span>
-                <span className="text-[var(--ink)]">/pets/:id</span>
-              </div>
-              <span className="text-[var(--ink-3)] text-[11px]">Get pet by ID · 4 rules</span>
-            </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#F87171]/15 text-[#F87171]">
-                  DELETE
-                </span>
-                <span className="text-[var(--ink)]">/pets/:id</span>
-              </div>
-              <span className="text-[var(--ink-3)] text-[11px]">Delete pet · 1 rule</span>
-            </div>
+            {endpoints.length === 0 ? (
+              <p className="text-[var(--ink-3)] text-xs font-sans py-3 text-center">
+                No endpoints found. Import an OpenAPI spec to populate.
+              </p>
+            ) : (
+              endpoints.slice(0, 5).map((ep) => (
+                <div
+                  key={ep.operationId}
+                  className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--signal-dim)] text-[var(--signal)]">
+                      {ep.method}
+                    </span>
+                    <span className="text-[var(--ink)]">{ep.path}</span>
+                  </div>
+                  <span className="text-[var(--ink-3)] text-[11px]">
+                    {ep.rulesCount ?? 1} rule{ep.rulesCount === 1 ? "" : "s"}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -284,49 +303,33 @@ export default function ProjectOverviewPage() {
           </div>
 
           <div className="space-y-2 text-xs font-mono">
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#4ADE80]/15 text-[#4ADE80]">
-                  GET
-                </span>
-                <span className="text-[var(--ink)] truncate max-w-[140px]">/pets/42</span>
-              </div>
-              <span className="text-[var(--success)] font-bold">200 OK</span>
-              <span className="text-[var(--ink-3)] text-[11px]">42ms · 2m ago</span>
-            </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#FACC15]/15 text-[#FACC15]">
-                  POST
-                </span>
-                <span className="text-[var(--ink)] truncate max-w-[140px]">/pets</span>
-              </div>
-              <span className="text-[var(--success)] font-bold">201 Created</span>
-              <span className="text-[var(--ink-3)] text-[11px]">68ms · 5m ago</span>
-            </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#4ADE80]/15 text-[#4ADE80]">
-                  GET
-                </span>
-                <span className="text-[var(--ink)] truncate max-w-[140px]">/pets</span>
-              </div>
-              <span className="text-[var(--success)] font-bold">200 OK</span>
-              <span className="text-[var(--ink-3)] text-[11px]">31ms · 8m ago</span>
-            </div>
-
-            <div className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]">
-              <div className="flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#4ADE80]/15 text-[#4ADE80]">
-                  GET
-                </span>
-                <span className="text-[var(--ink)] truncate max-w-[140px]">/unknown</span>
-              </div>
-              <span className="text-[var(--danger)] font-bold">404 Unmatched</span>
-              <span className="text-[var(--ink-3)] text-[11px]">12ms · 15m ago</span>
-            </div>
+            {recentLogs.length === 0 ? (
+              <p className="text-[var(--ink-3)] text-xs font-sans py-3 text-center">
+                No requests logged yet. Call the mock URL to see traffic.
+              </p>
+            ) : (
+              recentLogs.slice(0, 5).map((l: any) => (
+                <div
+                  key={l.id}
+                  className="flex items-center justify-between p-2.5 rounded bg-[var(--surface-0)] border border-[var(--border)]"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[var(--signal-dim)] text-[var(--signal)]">
+                      {l.method}
+                    </span>
+                    <span className="text-[var(--ink)] truncate max-w-[140px]">{l.path}</span>
+                  </div>
+                  <span
+                    className={`font-bold ${
+                      l.status < 400 ? "text-[var(--success)]" : "text-[var(--danger)]"
+                    }`}
+                  >
+                    {l.status}
+                  </span>
+                  <span className="text-[var(--ink-3)] text-[11px]">{l.latencyMs}ms</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

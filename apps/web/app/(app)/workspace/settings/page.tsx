@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
-  Settings,
   Shield,
   Clock,
   PauseCircle,
@@ -11,17 +10,17 @@ import {
   Check,
   Save,
   Globe,
-  Sliders,
-  X,
 } from "lucide-react";
+import { apiRequest, getActiveWorkspaceId } from "../../../../lib/api";
 
 export default function WorkspaceSettingsPage() {
-  const [name, setName] = useState("Acme Corp");
-  const [slug, setSlug] = useState("acme-corp");
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
   const [defaultEnv, setDefaultEnv] = useState("development");
   const [mockAuthDefault, setMockAuthDefault] = useState<"PUBLIC" | "PRIVATE">("PUBLIC");
   const [logRetentionDays, setLogRetentionDays] = useState(14);
   const [isSaved, setIsSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Danger zone modals
   const [isPauseAllOpen, setIsPauseAllOpen] = useState(false);
@@ -29,16 +28,67 @@ export default function WorkspaceSettingsPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [pausedSuccess, setPausedSuccess] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    async function loadSettings() {
+      const wsId = getActiveWorkspaceId();
+      const res = await apiRequest<{
+        name: string;
+        slug: string;
+        defaultEnv?: string;
+        mockAuthDefault?: "PUBLIC" | "PRIVATE";
+        logRetentionDays?: number;
+      }>(`/api/v1/workspaces/${wsId}`);
+
+      if (res.data) {
+        setName(res.data.name || "");
+        setSlug(res.data.slug || "");
+        if (res.data.defaultEnv) setDefaultEnv(res.data.defaultEnv);
+        if (res.data.mockAuthDefault) setMockAuthDefault(res.data.mockAuthDefault);
+        if (typeof res.data.logRetentionDays === "number") setLogRetentionDays(res.data.logRetentionDays);
+      }
+      setLoading(false);
+    }
+
+    loadSettings();
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2500);
+    const wsId = getActiveWorkspaceId();
+    const res = await apiRequest(`/api/v1/workspaces/${wsId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        name,
+        slug,
+        defaultEnv,
+        mockAuthDefault,
+        logRetentionDays,
+      }),
+    });
+
+    if (!res.error) {
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 2500);
+    }
   };
 
-  const handlePauseAll = () => {
+  const handlePauseAll = async () => {
+    const wsId = getActiveWorkspaceId();
+    await apiRequest(`/api/v1/workspaces/${wsId}/pause-all`, {
+      method: "POST",
+    });
     setPausedSuccess(true);
     setIsPauseAllOpen(false);
     setTimeout(() => setPausedSuccess(false), 3000);
+  };
+
+  const handleDeleteWorkspace = async () => {
+    const wsId = getActiveWorkspaceId();
+    await apiRequest(`/api/v1/workspaces/${wsId}`, {
+      method: "DELETE",
+    });
+    setIsDeleteOpen(false);
+    window.location.href = "/projects";
   };
 
   return (
@@ -58,154 +108,160 @@ export default function WorkspaceSettingsPage() {
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-6">
-        {/* General Settings */}
-        <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
-            <Globe className="w-4 h-4 text-[var(--signal)]" />
-            <h2 className="text-sm font-semibold text-[var(--ink)]">General Workspace Info</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[var(--ink-2)]">Workspace Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
-              />
+      {loading ? (
+        <div className="p-12 text-center text-xs text-[var(--ink-2)]">
+          Loading workspace settings...
+        </div>
+      ) : (
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* General Settings */}
+          <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
+              <Globe className="w-4 h-4 text-[var(--signal)]" />
+              <h2 className="text-sm font-semibold text-[var(--ink)]">General Workspace Info</h2>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-[var(--ink-2)]">Workspace Slug (URL Prefix)</label>
-              <div className="flex items-center">
-                <span className="px-3 py-2 bg-[var(--surface-2)] border border-r-0 border-[var(--border)] rounded-l-lg text-xs font-mono text-[var(--ink-3)]">
-                  mocklab.io/
-                </span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-[var(--ink-2)]">Workspace Name</label>
                 <input
                   type="text"
                   required
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                  className="w-full px-3 py-2 rounded-r-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs font-mono text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
                 />
               </div>
-            </div>
 
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-medium text-[var(--ink-2)]">Default Environment</label>
-              <select
-                value={defaultEnv}
-                onChange={(e) => setDefaultEnv(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
-              >
-                <option value="development">development (Local & Sandbox prototyping)</option>
-                <option value="staging">staging (Pre-production contract verification)</option>
-                <option value="production">production (Live integration mock baseline)</option>
-              </select>
-            </div>
-          </div>
-        </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-[var(--ink-2)]">Workspace Slug (URL Prefix)</label>
+                <div className="flex items-center">
+                  <span className="px-3 py-2 bg-[var(--surface-2)] border border-r-0 border-[var(--border)] rounded-l-lg text-xs font-mono text-[var(--ink-3)]">
+                    mocklab-api-prod.onrender.com/m/
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                    className="w-full px-3 py-2 rounded-r-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs font-mono text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                  />
+                </div>
+              </div>
 
-        {/* Mock Engine & Auth Defaults */}
-        <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
-            <Shield className="w-4 h-4 text-[var(--signal)]" />
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Mock Engine Security Defaults</h2>
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-xs font-medium text-[var(--ink-2)]">Default Mock Authentication Posture</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setMockAuthDefault("PUBLIC")}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  mockAuthDefault === "PUBLIC"
-                    ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
-                    : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
-                }`}
-              >
-                <div className="text-xs font-semibold">Public by Default</div>
-                <p className="text-[11px] text-[var(--ink-3)] mt-1">
-                  Anyone with the mock endpoint URL can execute requests. Ideal for frontend teams without API keys.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMockAuthDefault("PRIVATE")}
-                className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
-                  mockAuthDefault === "PRIVATE"
-                    ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
-                    : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
-                }`}
-              >
-                <div className="text-xs font-semibold">Private by Default</div>
-                <p className="text-[11px] text-[var(--ink-3)] mt-1">
-                  Rejects unauthenticated traffic with HTTP 401. Requires X-MockLab-Key header or Bearer token.
-                </p>
-              </button>
+              <div className="space-y-1.5 md:col-span-2">
+                <label className="text-xs font-medium text-[var(--ink-2)]">Default Environment</label>
+                <select
+                  value={defaultEnv}
+                  onChange={(e) => setDefaultEnv(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                >
+                  <option value="development">development (Local &amp; Sandbox prototyping)</option>
+                  <option value="staging">staging (Pre-production contract verification)</option>
+                  <option value="production">production (Live integration mock baseline)</option>
+                </select>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Traffic Log Retention */}
-        <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
-            <Clock className="w-4 h-4 text-[var(--signal)]" />
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Traffic Log Retention</h2>
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-[var(--ink-2)]">Automatic Purge Window</label>
-              <span className="text-xs font-mono text-[var(--signal)]">{logRetentionDays} days</span>
+          {/* Mock Engine & Auth Defaults */}
+          <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
+              <Shield className="w-4 h-4 text-[var(--signal)]" />
+              <h2 className="text-sm font-semibold text-[var(--ink)]">Mock Engine Security Defaults</h2>
             </div>
 
-            <div className="grid grid-cols-4 gap-2">
-              {[7, 14, 30, 90].map((days) => (
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-[var(--ink-2)]">Default Mock Authentication Posture</label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <button
                   type="button"
-                  key={days}
-                  onClick={() => setLogRetentionDays(days)}
-                  className={`py-2 px-3 rounded-lg border text-center text-xs font-mono transition-all cursor-pointer ${
-                    logRetentionDays === days
+                  onClick={() => setMockAuthDefault("PUBLIC")}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    mockAuthDefault === "PUBLIC"
                       ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
                       : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
                   }`}
                 >
-                  {days} Days
+                  <div className="text-xs font-semibold">Public by Default</div>
+                  <p className="text-[11px] text-[var(--ink-3)] mt-1">
+                    Anyone with the mock endpoint URL can execute requests. Ideal for frontend teams without API keys.
+                  </p>
                 </button>
-              ))}
+
+                <button
+                  type="button"
+                  onClick={() => setMockAuthDefault("PRIVATE")}
+                  className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
+                    mockAuthDefault === "PRIVATE"
+                      ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
+                      : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
+                  }`}
+                >
+                  <div className="text-xs font-semibold">Private by Default</div>
+                  <p className="text-[11px] text-[var(--ink-3)] mt-1">
+                    Rejects unauthenticated traffic with HTTP 401. Requires X-MockLab-Key header or Bearer token.
+                  </p>
+                </button>
+              </div>
             </div>
-            <p className="text-[11px] text-[var(--ink-3)]">
-              Incoming mock requests and responses older than this window are permanently purged during scheduled maintenance.
-            </p>
           </div>
-        </div>
 
-        {/* Save Bar */}
-        <div className="flex items-center justify-end gap-3 pt-2">
-          {isSaved && (
-            <span className="inline-flex items-center gap-1.5 text-xs text-[var(--success)] font-medium">
-              <Check className="w-3.5 h-3.5" />
-              Settings Saved
-            </span>
-          )}
-          <button
-            type="submit"
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--signal)] text-[var(--surface-0)] font-medium text-xs hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>Save Settings</span>
-          </button>
-        </div>
-      </form>
+          {/* Traffic Log Retention */}
+          <div className="p-6 rounded-xl border border-[var(--border)] bg-[var(--surface-1)] space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-[var(--border)]">
+              <Clock className="w-4 h-4 text-[var(--signal)]" />
+              <h2 className="text-sm font-semibold text-[var(--ink)]">Traffic Log Retention</h2>
+            </div>
 
-      {/* Danger Zone (§6.8 & §10) */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-[var(--ink-2)]">Automatic Purge Window</label>
+                <span className="text-xs font-mono text-[var(--signal)]">{logRetentionDays} days</span>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                {[7, 14, 30, 90].map((days) => (
+                  <button
+                    type="button"
+                    key={days}
+                    onClick={() => setLogRetentionDays(days)}
+                    className={`py-2 px-3 rounded-lg border text-center text-xs font-mono transition-all cursor-pointer ${
+                      logRetentionDays === days
+                        ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
+                        : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
+                    }`}
+                  >
+                    {days} Days
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] text-[var(--ink-3)]">
+                Incoming mock requests and responses older than this window are permanently purged during scheduled maintenance.
+              </p>
+            </div>
+          </div>
+
+          {/* Save Bar */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            {isSaved && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-[var(--success)] font-medium">
+                <Check className="w-3.5 h-3.5" />
+                Settings Saved
+              </span>
+            )}
+            <button
+              type="submit"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--signal)] text-[var(--surface-0)] font-medium text-xs hover:opacity-90 transition-opacity cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Save Settings</span>
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Danger Zone */}
       <div className="p-6 rounded-xl border border-[var(--error)]/30 bg-[var(--surface-1)] space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-[var(--error)]/20 text-[var(--error)]">
           <AlertTriangle className="w-4 h-4" />
@@ -323,10 +379,7 @@ export default function WorkspaceSettingsPage() {
               </button>
               <button
                 disabled={deleteConfirmText !== slug}
-                onClick={() => {
-                  alert("Workspace deleted");
-                  setIsDeleteOpen(false);
-                }}
+                onClick={handleDeleteWorkspace}
                 className="px-4 py-1.5 rounded-lg bg-[var(--error)] text-white text-xs font-medium hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-opacity cursor-pointer"
               >
                 Permanently Delete

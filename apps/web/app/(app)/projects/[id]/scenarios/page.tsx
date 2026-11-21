@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import {
   Workflow,
@@ -12,17 +12,15 @@ import {
   RotateCcw,
   Search,
   Code,
-  ArrowRight,
   ShieldAlert,
   Sparkles,
   Layers,
   History,
   CheckCircle2,
   Circle,
-  Play,
   X,
-  ExternalLink,
 } from "lucide-react";
+import { apiRequest } from "../../../../../lib/api";
 
 interface BucketItem {
   id: string;
@@ -71,68 +69,13 @@ export default function ScenariosPage() {
 
   const [currentState, setCurrentState] = useState<string>("created");
 
-  // In-memory data store for the UI
+  // Buckets state loaded from API
   const [bucketsData, setBucketsData] = useState<Record<string, BucketItem[]>>({
-    orders: [
-      {
-        id: "7b4c91e2-38d0-4fa2-9381-81f9a2b530c1",
-        customer: "Ada Lovelace",
-        items: [{ sku: "DEV-KEYBOARD-01", qty: 1, price: 189.0 }],
-        total: 189.0,
-        status: "created",
-        currency: "USD",
-        createdAt: "2026-11-10T23:14:02.108Z",
-        updatedAt: "2026-11-10T23:14:02.108Z",
-      },
-      {
-        id: "a18f43c8-9d22-44b7-8392-562a93c78d02",
-        customer: "Alan Turing",
-        items: [{ sku: "ENIGMA-CHIP-42", qty: 2, price: 420.0 }],
-        total: 840.0,
-        status: "paid",
-        currency: "USD",
-        createdAt: "2026-11-10T21:05:44.201Z",
-        updatedAt: "2026-11-10T21:18:12.890Z",
-      },
-    ],
-    pets: [
-      {
-        id: "9e248b11-54c3-4d8e-90c7-2e11894a7350",
-        name: "Fido",
-        tag: "dog",
-        status: "available",
-        createdAt: "2026-11-10T20:30:15.000Z",
-        updatedAt: "2026-11-10T20:30:15.000Z",
-      },
-      {
-        id: "0d3a58cc-62d9-488b-a311-fc738b5028ef",
-        name: "Mittens",
-        tag: "cat",
-        status: "pending",
-        createdAt: "2026-11-10T19:12:00.000Z",
-        updatedAt: "2026-11-10T19:12:00.000Z",
-      },
-    ],
+    orders: [],
+    pets: [],
   });
 
-  const [transitionLogs, setTransitionLogs] = useState<TransitionLog[]>([
-    {
-      id: "log-1",
-      timestamp: new Date().toLocaleTimeString(),
-      scenarioKey: "default",
-      action: "CREATE",
-      summary: "POST /orders created record 7b4c91e2",
-      targetId: "7b4c91e2-38d0-4fa2-9381-81f9a2b530c1",
-    },
-    {
-      id: "log-2",
-      timestamp: new Date(Date.now() - 360000).toLocaleTimeString(),
-      scenarioKey: "default",
-      action: "TRANSITION",
-      summary: "Scenario 'order-lifecycle' stepped to 'paid'",
-      targetId: "a18f43c8-9d22-44b7-8392-562a93c78d02",
-    },
-  ]);
+  const [transitionLogs, setTransitionLogs] = useState<TransitionLog[]>([]);
 
   // Modals & Panels
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
@@ -140,6 +83,47 @@ export default function ScenariosPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [viewingRecord, setViewingRecord] = useState<BucketItem | null>(null);
   const [newRecordJson, setNewRecordJson] = useState(`{\n  "name": "New Record",\n  "status": "active"\n}`);
+
+  const loadScenarioData = useCallback(async () => {
+    const [ovRes, itemsRes] = await Promise.all([
+      apiRequest<any>(`/api/v1/projects/${projectId}/scenarios?scenarioKey=${encodeURIComponent(scenarioKey)}`),
+      apiRequest<any>(`/api/v1/projects/${projectId}/scenarios/buckets/${activeResource}?scenarioKey=${encodeURIComponent(scenarioKey)}&search=${encodeURIComponent(searchQuery)}`),
+    ]);
+
+    if (ovRes.data) {
+      if (ovRes.data.buckets && typeof ovRes.data.buckets === "object") {
+        setBucketsData((prev) => {
+          const next = { ...prev };
+          Object.keys(ovRes.data.buckets).forEach((k) => {
+            if (!next[k]) next[k] = [];
+          });
+          return next;
+        });
+      }
+      if (Array.isArray(ovRes.data.transitionLogs)) {
+        setTransitionLogs(ovRes.data.transitionLogs);
+      }
+      if (ovRes.data.scenarios?.[0]?.currentState) {
+        setCurrentState(ovRes.data.scenarios[0].currentState);
+      }
+    }
+
+    if (itemsRes.data?.items && Array.isArray(itemsRes.data.items)) {
+      setBucketsData((prev) => ({
+        ...prev,
+        [activeResource]: itemsRes.data.items,
+      }));
+    } else {
+      setBucketsData((prev) => ({
+        ...prev,
+        [activeResource]: prev[activeResource] || [],
+      }));
+    }
+  }, [projectId, scenarioKey, activeResource, searchQuery]);
+
+  useEffect(() => {
+    loadScenarioData();
+  }, [loadScenarioData]);
 
   // Derived filtered items
   const activeItems = useMemo(() => {
@@ -157,127 +141,76 @@ export default function ScenariosPage() {
   };
 
   // Reset state action
-  const handleResetState = () => {
-    setBucketsData((prev) => ({
-      ...prev,
-      [activeResource]: [],
-    }));
-    setCurrentState("created");
-    setTransitionLogs((prev) => [
-      {
-        id: `reset-${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString(),
-        scenarioKey,
-        action: "RESET",
-        summary: `Reset state executed for scenario '${scenarioKey}': bucket '${activeResource}' cleared`,
-      },
-      ...prev,
-    ]);
+  const handleResetState = async () => {
+    await apiRequest(`/api/v1/projects/${projectId}/scenarios/reset`, {
+      method: "POST",
+      body: JSON.stringify({ scenarioKey }),
+    });
     setIsResetConfirmOpen(false);
+    await loadScenarioData();
   };
 
   // Delete single item
-  const handleDeleteItem = (id: string) => {
-    setBucketsData((prev) => ({
-      ...prev,
-      [activeResource]: (prev[activeResource] || []).filter((item) => item.id !== id),
-    }));
-    setTransitionLogs((prev) => [
-      {
-        id: `del-${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString(),
-        scenarioKey,
-        action: "DELETE",
-        summary: `DELETE /${activeResource}/${id.slice(0, 8)} removed item from bucket`,
-        targetId: id,
-      },
-      ...prev,
-    ]);
+  const handleDeleteItem = async (id: string) => {
+    await apiRequest(
+      `/api/v1/projects/${projectId}/scenarios/buckets/${activeResource}/${id}?scenarioKey=${encodeURIComponent(scenarioKey)}`,
+      { method: "DELETE" }
+    );
     if (viewingRecord?.id === id) setViewingRecord(null);
+    await loadScenarioData();
   };
 
   // Create new item
-  const handleCreateRecord = () => {
+  const handleCreateRecord = async () => {
     try {
-      const parsed = JSON.parse(newRecordJson);
-      const newId = crypto.randomUUID();
-      const now = new Date().toISOString();
-      const newItem: BucketItem = {
-        ...parsed,
-        id: newId,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      setBucketsData((prev) => ({
-        ...prev,
-        [activeResource]: [newItem, ...(prev[activeResource] || [])],
-      }));
-
-      setTransitionLogs((prev) => [
-        {
-          id: `create-${Date.now()}`,
-          timestamp: new Date().toLocaleTimeString(),
+      JSON.parse(newRecordJson);
+      // Post item or apply template
+      await apiRequest(`/api/v1/projects/${projectId}/scenarios/templates`, {
+        method: "POST",
+        body: JSON.stringify({
+          template: "crud",
           scenarioKey,
-          action: "CREATE",
-          summary: `POST /${activeResource} added new record ${newId.slice(0, 8)}`,
-          targetId: newId,
-        },
-        ...prev,
-      ]);
-
+          resource: activeResource,
+        }),
+      });
       setIsCreateModalOpen(false);
+      await loadScenarioData();
     } catch {
       alert("Invalid JSON format");
     }
   };
 
   // Transition state
-  const handleTransition = (nextState: string) => {
-    const prevState = currentState;
-    setCurrentState(nextState);
-    setTransitionLogs((prev) => [
-      {
-        id: `trans-${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString(),
+  const handleTransition = async (nextState: string) => {
+    await apiRequest(`/api/v1/projects/${projectId}/scenarios/transition`, {
+      method: "POST",
+      body: JSON.stringify({
+        scenarioName: "order-lifecycle",
+        toState: nextState,
         scenarioKey,
-        action: "TRANSITION",
-        summary: `Scenario 'order-lifecycle' transitioned from ${prevState} → ${nextState}`,
-      },
-      ...prev,
-    ]);
+      }),
+    });
+    setCurrentState(nextState);
+    await loadScenarioData();
   };
 
   // Apply templates
-  const handleApplyTemplate = (type: "orders" | "crud" | "auth") => {
-    if (type === "orders") {
-      setActiveResource("orders");
-      setCurrentState("created");
-      setBucketsData((prev) => ({
-        ...prev,
-        orders: [
-          {
-            id: crypto.randomUUID(),
-            customer: "Grace Hopper",
-            total: 245.5,
-            items: [{ sku: "COMPILER-MANUAL", qty: 1, price: 245.5 }],
-            status: "created",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          },
-        ],
-      }));
-    } else if (type === "crud") {
+  const handleApplyTemplate = async (type: "orders" | "crud" | "auth") => {
+    await apiRequest(`/api/v1/projects/${projectId}/scenarios/templates`, {
+      method: "POST",
+      body: JSON.stringify({
+        template: type,
+        scenarioKey,
+        resource: type === "crud" ? "pets" : "orders",
+      }),
+    });
+    if (type === "crud") {
       setActiveResource("pets");
-      setBucketsData((prev) => ({
-        ...prev,
-        pets: [
-          { id: crypto.randomUUID(), name: "Shadow", tag: "dog", status: "available", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-          { id: crypto.randomUUID(), name: "Whiskers", tag: "cat", status: "available", createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-        ],
-      }));
+    } else {
+      setActiveResource("orders");
     }
     setIsTemplateMenuOpen(false);
+    await loadScenarioData();
   };
 
   return (

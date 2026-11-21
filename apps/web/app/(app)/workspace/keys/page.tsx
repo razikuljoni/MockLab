@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   KeyRound,
   Plus,
@@ -16,6 +16,7 @@ import {
   X,
   ExternalLink,
 } from "lucide-react";
+import { apiRequest, getActiveWorkspaceId } from "../../../../lib/api";
 
 interface ApiKeyItem {
   id: string;
@@ -30,47 +31,9 @@ interface ApiKeyItem {
   lastUsedAt: string | null;
 }
 
-const INITIAL_KEYS: ApiKeyItem[] = [
-  {
-    id: "key_1",
-    name: "Production Gateway CI",
-    prefix: "mk_live_",
-    last4: "8fa2",
-    scopes: ["mock:read", "mock:write", "tests:run"],
-    rateLimitPerMin: 120,
-    monthlyQuota: 100000,
-    revokedAt: null,
-    createdAt: "2026-02-14T10:00:00Z",
-    lastUsedAt: "2026-03-12T18:42:10Z",
-  },
-  {
-    id: "key_2",
-    name: "Local Development & Testing",
-    prefix: "mk_test_",
-    last4: "93bc",
-    scopes: ["mock:read", "tests:run"],
-    rateLimitPerMin: 60,
-    monthlyQuota: 10000,
-    revokedAt: null,
-    createdAt: "2026-02-20T15:20:00Z",
-    lastUsedAt: "2026-03-11T09:12:00Z",
-  },
-  {
-    id: "key_3",
-    name: "Deprecated Integration Key",
-    prefix: "mk_live_",
-    last4: "1190",
-    scopes: ["mock:read"],
-    rateLimitPerMin: 30,
-    monthlyQuota: 5000,
-    revokedAt: "2026-03-01T12:00:00Z",
-    createdAt: "2026-01-10T08:00:00Z",
-    lastUsedAt: "2026-02-28T22:15:00Z",
-  },
-];
-
 export default function WorkspaceKeysPage() {
-  const [keys, setKeys] = useState<ApiKeyItem[]>(INITIAL_KEYS);
+  const [keys, setKeys] = useState<ApiKeyItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [keyName, setKeyName] = useState("");
   const [keyPrefix, setKeyPrefix] = useState<"mk_live_" | "mk_test_">("mk_live_");
@@ -78,44 +41,59 @@ export default function WorkspaceKeysPage() {
   const [rawCreatedKey, setRawCreatedKey] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const loadKeys = async () => {
+    const wsId = getActiveWorkspaceId();
+    const res = await apiRequest<ApiKeyItem[]>(`/api/v1/workspaces/${wsId}/keys`);
+    if (res.data && Array.isArray(res.data)) {
+      setKeys(res.data);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadKeys();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!keyName.trim()) return;
 
-    const randomHex = Array.from({ length: 40 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join("");
-    const generatedRaw = `${keyPrefix}${randomHex}`;
-    const last4 = generatedRaw.slice(-4);
-
-    const newKeyRecord: ApiKeyItem = {
-      id: `key_${Date.now()}`,
-      name: keyName.trim(),
-      prefix: keyPrefix,
-      last4,
-      scopes: ["mock:read", "mock:write", "tests:run"],
-      rateLimitPerMin: rateLimit,
-      monthlyQuota: 0,
-      revokedAt: null,
-      createdAt: new Date().toISOString(),
-      lastUsedAt: null,
-    };
-
-    setKeys((prev) => [newKeyRecord, ...prev]);
-    setRawCreatedKey(generatedRaw);
-    setKeyName("");
-  };
-
-  const handleRevoke = (keyId: string) => {
-    setKeys((prev) =>
-      prev.map((k) =>
-        k.id === keyId ? { ...k, revokedAt: new Date().toISOString() } : k
-      )
+    const wsId = getActiveWorkspaceId();
+    const res = await apiRequest<{ key: ApiKeyItem; rawKey: string }>(
+      `/api/v1/workspaces/${wsId}/keys`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          name: keyName.trim(),
+          prefix: keyPrefix,
+          rateLimitPerMin: rateLimit,
+          monthlyQuota: 50000,
+          scopes: ["mock:read", "mock:write", "tests:run"],
+        }),
+      }
     );
+
+    if (res.data?.rawKey) {
+      setRawCreatedKey(res.data.rawKey);
+      setKeyName("");
+      await loadKeys();
+    }
   };
 
-  const handleDelete = (keyId: string) => {
-    setKeys((prev) => prev.filter((k) => k.id !== keyId));
+  const handleRevoke = async (keyId: string) => {
+    const wsId = getActiveWorkspaceId();
+    await apiRequest(`/api/v1/workspaces/${wsId}/keys/${keyId}/revoke`, {
+      method: "POST",
+    });
+    await loadKeys();
+  };
+
+  const handleDelete = async (keyId: string) => {
+    const wsId = getActiveWorkspaceId();
+    await apiRequest(`/api/v1/workspaces/${wsId}/keys/${keyId}`, {
+      method: "DELETE",
+    });
+    await loadKeys();
   };
 
   const copyToClipboard = (text: string) => {
@@ -201,88 +179,103 @@ export default function WorkspaceKeysPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)] text-xs">
-              {keys.map((key) => {
-                const isRevoked = Boolean(key.revokedAt);
-                return (
-                  <tr
-                    key={key.id}
-                    className={`transition-colors ${
-                      isRevoked
-                        ? "opacity-50 bg-[var(--surface-0)]/40"
-                        : "hover:bg-[var(--surface-2)]/50"
-                    }`}
-                  >
-                    <td className="px-4 py-3.5 font-medium text-[var(--ink)]">
-                      <div className="flex items-center gap-2">
-                        <KeyRound className="w-3.5 h-3.5 text-[var(--signal)]" />
-                        <span>{key.name}</span>
-                      </div>
-                    </td>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-xs text-[var(--ink-2)]">
+                    Loading API keys...
+                  </td>
+                </tr>
+              ) : keys.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center space-y-2">
+                    <KeyRound className="w-6 h-6 text-[var(--ink-3)] mx-auto mb-1" />
+                    <p className="text-xs text-[var(--ink-2)]">No API keys created yet.</p>
+                  </td>
+                </tr>
+              ) : (
+                keys.map((key) => {
+                  const isRevoked = Boolean(key.revokedAt);
+                  return (
+                    <tr
+                      key={key.id}
+                      className={`transition-colors ${
+                        isRevoked
+                          ? "opacity-50 bg-[var(--surface-0)]/40"
+                          : "hover:bg-[var(--surface-2)]/50"
+                      }`}
+                    >
+                      <td className="px-4 py-3.5 font-medium text-[var(--ink)]">
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="w-3.5 h-3.5 text-[var(--signal)]" />
+                          <span>{key.name}</span>
+                        </div>
+                      </td>
 
-                    <td className="px-4 py-3.5 font-mono text-[11px] text-[var(--ink-2)]">
-                      <span className="text-[var(--ink-3)]">{key.prefix}</span>
-                      <span className="text-[var(--ink-3)]">••••••••</span>
-                      <span className="text-[var(--ink)] font-semibold">{key.last4}</span>
-                    </td>
+                      <td className="px-4 py-3.5 font-mono text-[11px] text-[var(--ink-2)]">
+                        <span className="text-[var(--ink-3)]">{key.prefix}</span>
+                        <span className="text-[var(--ink-3)]">••••••••</span>
+                        <span className="text-[var(--ink)] font-semibold">{key.last4}</span>
+                      </td>
 
-                    <td className="px-4 py-3.5">
-                      <div className="flex flex-wrap gap-1">
-                        {key.scopes.map((s) => (
-                          <span
-                            key={s}
-                            className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--surface-2)] border border-[var(--border)] text-[var(--ink-2)]"
-                          >
-                            {s}
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-wrap gap-1">
+                          {(key.scopes || []).map((s) => (
+                            <span
+                              key={s}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[var(--surface-2)] border border-[var(--border)] text-[var(--ink-2)]"
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3.5 text-[var(--ink-2)] font-mono text-[11px]">
+                        {key.rateLimitPerMin} req/min
+                      </td>
+
+                      <td className="px-4 py-3.5 text-[var(--ink-3)] font-mono text-[11px]">
+                        {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : "Never"}
+                      </td>
+
+                      <td className="px-4 py-3.5">
+                        {isRevoked ? (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono bg-[var(--error)]/10 text-[var(--error)] border border-[var(--error)]/30">
+                            <Ban className="w-3 h-3" />
+                            Revoked
                           </span>
-                        ))}
-                      </div>
-                    </td>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/30">
+                            <CheckCircle2 className="w-3 h-3" />
+                            Active
+                          </span>
+                        )}
+                      </td>
 
-                    <td className="px-4 py-3.5 text-[var(--ink-2)] font-mono text-[11px]">
-                      {key.rateLimitPerMin} req/min
-                    </td>
-
-                    <td className="px-4 py-3.5 text-[var(--ink-3)] font-mono text-[11px]">
-                      {key.lastUsedAt ? new Date(key.lastUsedAt).toLocaleDateString() : "Never"}
-                    </td>
-
-                    <td className="px-4 py-3.5">
-                      {isRevoked ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono bg-[var(--error)]/10 text-[var(--error)] border border-[var(--error)]/30">
-                          <Ban className="w-3 h-3" />
-                          Revoked
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/30">
-                          <CheckCircle2 className="w-3 h-3" />
-                          Active
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3.5 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {!isRevoked ? (
+                      <td className="px-4 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!isRevoked ? (
+                            <button
+                              onClick={() => handleRevoke(key.id)}
+                              title="Revoke key immediately"
+                              className="px-2 py-1 rounded text-[11px] border border-[var(--border)] hover:border-[var(--warning)]/50 text-[var(--warning)] hover:bg-[var(--warning)]/10 transition-colors cursor-pointer"
+                            >
+                              Revoke
+                            </button>
+                          ) : null}
                           <button
-                            onClick={() => handleRevoke(key.id)}
-                            title="Revoke key immediately"
-                            className="px-2 py-1 rounded text-[11px] border border-[var(--border)] hover:border-[var(--warning)]/50 text-[var(--warning)] hover:bg-[var(--warning)]/10 transition-colors cursor-pointer"
+                            onClick={() => handleDelete(key.id)}
+                            title="Delete record"
+                            className="p-1 rounded text-[var(--ink-3)] hover:text-[var(--error)] transition-colors cursor-pointer"
                           >
-                            Revoke
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        ) : null}
-                        <button
-                          onClick={() => handleDelete(key.id)}
-                          title="Delete record"
-                          className="p-1 rounded text-[var(--ink-3)] hover:text-[var(--error)] transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -300,63 +293,58 @@ export default function WorkspaceKeysPage() {
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-sm text-[var(--ink)]">API Key Generated</h3>
-                    <p className="text-xs text-[var(--ink-3)]">Save this key now — it cannot be recovered</p>
+                    <h3 className="font-semibold text-sm text-[var(--ink)]">API Key Created Successfully</h3>
+                    <p className="text-xs text-[var(--ink-3)]">Save this key now. It cannot be shown again.</p>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning)]/10 flex items-start gap-2.5 text-xs text-[var(--warning)]">
+                <div className="p-3.5 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning)]/10 text-xs text-[var(--warning)] flex items-start gap-2.5">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <p>
-                    Please copy this key and store it in a secure location (e.g. GitHub Secrets or environment variables). MockLab only stores the SHA-256 hash and cannot reveal it again.
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-mono text-[var(--ink-2)]">Your Secret API Key</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={rawCreatedKey}
-                      className="w-full px-3 py-2.5 rounded-lg bg-[var(--surface-0)] border border-[var(--signal)]/50 text-xs font-mono text-[var(--signal)] select-all"
-                    />
-                    <button
-                      onClick={() => copyToClipboard(rawCreatedKey)}
-                      className="px-3.5 py-2.5 rounded-lg bg-[var(--signal)] text-[var(--surface-0)] text-xs font-medium hover:opacity-90 transition-opacity flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    >
-                      {copiedKey ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedKey ? "Copied" : "Copy"}</span>
-                    </button>
+                  <div>
+                    MockLab stores only the SHA-256 hash. If you lose this key, you will need to revoke it and generate a replacement.
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[var(--border)] flex justify-end">
+                <div className="p-3 rounded-xl bg-[var(--surface-0)] border border-[var(--border)] flex items-center justify-between gap-3">
+                  <code className="text-xs font-mono text-[var(--signal)] break-all select-all">
+                    {rawCreatedKey}
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(rawCreatedKey)}
+                    className="p-2 rounded-lg bg-[var(--surface-2)] text-[var(--ink)] hover:bg-[var(--surface-3)] transition-colors shrink-0 cursor-pointer"
+                    title="Copy full key to clipboard"
+                  >
+                    {copiedKey ? <Check className="w-4 h-4 text-[var(--success)]" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="pt-2 flex justify-end">
                   <button
                     onClick={() => {
                       setIsCreateOpen(false);
                       setRawCreatedKey(null);
                     }}
-                    className="px-4 py-2 rounded-lg bg-[var(--surface-2)] text-[var(--ink)] text-xs font-medium hover:bg-[var(--surface-3)] transition-colors cursor-pointer"
+                    className="px-4 py-2 rounded-lg bg-[var(--signal)] text-[var(--surface-0)] text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer"
                   >
-                    Done & Close
+                    Done &amp; Dismiss
                   </button>
                 </div>
               </div>
             ) : (
-              // Step 1: Form
-              <div className="space-y-4">
+              // Step 1: Input Form
+              <form onSubmit={handleCreate} className="space-y-4">
                 <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-lg bg-[var(--signal-dim)] text-[var(--signal)] flex items-center justify-center">
                       <KeyRound className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-sm text-[var(--ink)]">Create API Key</h3>
-                      <p className="text-xs text-[var(--ink-3)]">Configure scopes and rate limits</p>
+                      <h3 className="font-semibold text-sm text-[var(--ink)]">Generate New API Key</h3>
+                      <p className="text-xs text-[var(--ink-3)]">For CI runners, gateway proxies, and automation</p>
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setIsCreateOpen(false)}
                     className="text-[var(--ink-3)] hover:text-[var(--ink)] transition-colors cursor-pointer"
                   >
@@ -364,82 +352,85 @@ export default function WorkspaceKeysPage() {
                   </button>
                 </div>
 
-                <form onSubmit={handleCreate} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[var(--ink-2)]">Key Name</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. GitHub Actions CI Runner"
-                      value={keyName}
-                      onChange={(e) => setKeyName(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] placeholder-[var(--ink-3)] focus:outline-none focus:border-[var(--signal)]"
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-[var(--ink-2)]">Key Name / Identifier</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. GitHub Actions CI / QA Gateway"
+                    value={keyName}
+                    onChange={(e) => setKeyName(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] placeholder-[var(--ink-3)] focus:outline-none focus:border-[var(--signal)]"
+                  />
+                </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-[var(--ink-2)]">Environment Prefix</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setKeyPrefix("mk_live_")}
-                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
-                          keyPrefix === "mk_live_"
-                            ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
-                            : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
-                        }`}
-                      >
-                        <div className="text-xs font-mono">mk_live_</div>
-                        <div className="text-[10px] text-[var(--ink-3)] mt-0.5">Production Mocks</div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setKeyPrefix("mk_test_")}
-                        className={`p-3 rounded-lg border text-left transition-all cursor-pointer ${
-                          keyPrefix === "mk_test_"
-                            ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
-                            : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
-                        }`}
-                      >
-                        <div className="text-xs font-mono">mk_test_</div>
-                        <div className="text-[10px] text-[var(--ink-3)] mt-0.5">Test & CI Suites</div>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-[var(--ink-2)]">Rate Limit</span>
-                      <span className="font-mono text-[var(--signal)]">{rateLimit} req/min</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={10}
-                      max={1000}
-                      step={10}
-                      value={rateLimit}
-                      onChange={(e) => setRateLimit(Number(e.target.value))}
-                      className="w-full accent-[var(--signal)] cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="pt-3 flex items-center justify-end gap-2 border-t border-[var(--border)]">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-[var(--ink-2)]">Environment Prefix</label>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setIsCreateOpen(false)}
-                      className="px-3.5 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--ink-2)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                      onClick={() => setKeyPrefix("mk_live_")}
+                      className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        keyPrefix === "mk_live_"
+                          ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
+                          : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
+                      }`}
                     >
-                      Cancel
+                      <div className="text-xs font-mono font-bold">mk_live_</div>
+                      <div className="text-[10px] text-[var(--ink-3)] mt-0.5">Production Gateway</div>
                     </button>
                     <button
-                      type="submit"
-                      className="px-4 py-1.5 rounded-lg bg-[var(--signal)] text-[var(--surface-0)] text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer"
+                      type="button"
+                      onClick={() => setKeyPrefix("mk_test_")}
+                      className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        keyPrefix === "mk_test_"
+                          ? "border-[var(--signal)] bg-[var(--signal-dim)] text-[var(--signal)] font-medium"
+                          : "border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink-2)] hover:border-[var(--border-strong)]"
+                      }`}
                     >
-                      Generate Key
+                      <div className="text-xs font-mono font-bold">mk_test_</div>
+                      <div className="text-[10px] text-[var(--ink-3)] mt-0.5">Ephemeral CI / Testing</div>
                     </button>
                   </div>
-                </form>
-              </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="font-medium text-[var(--ink-2)]">Rate Limit Cap</label>
+                    <span className="font-mono text-[var(--signal)]">{rateLimit} req/min</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={10}
+                    max={1000}
+                    step={10}
+                    value={rateLimit}
+                    onChange={(e) => setRateLimit(Number(e.target.value))}
+                    className="w-full accent-[var(--signal)] cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-[var(--ink-3)] font-mono">
+                    <span>10 req/min</span>
+                    <span>500 req/min</span>
+                    <span>1,000 req/min</span>
+                  </div>
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-2 border-t border-[var(--border)]">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateOpen(false)}
+                    className="px-3.5 py-1.5 rounded-lg border border-[var(--border)] text-xs text-[var(--ink-2)] hover:bg-[var(--surface-2)] transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 rounded-lg bg-[var(--signal)] text-[var(--surface-0)] text-xs font-medium hover:opacity-90 transition-opacity cursor-pointer"
+                  >
+                    Generate Key
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>

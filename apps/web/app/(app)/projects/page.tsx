@@ -22,22 +22,8 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState("");
   const [showNewModal, setShowNewModal] = useState(false);
 
-  // Projects list loaded from API with local cache
-  const [projects, setProjects] = useState<any[]>([
-    {
-      id: "petstore",
-      name: "Petstore Demo",
-      slug: "petstore",
-      environment: "dev",
-      mockUrl: "https://petstore.mocklab.dev",
-      endpointsCount: 8,
-      rulesCount: 12,
-      requestsToday: 1420,
-      contractStatus: "PASS",
-      updatedAt: "10 mins ago",
-      isDemo: true,
-    },
-  ]);
+  // Projects list loaded from API
+  const [projects, setProjects] = useState<any[]>([]);
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -56,14 +42,14 @@ export default function ProjectsPage() {
         });
         if (res.ok) {
           const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
+          if (Array.isArray(data)) {
             setProjects(
               data.map((p: any) => ({
                 id: p.id,
                 name: p.name,
                 slug: p.slug,
                 environment: p.environment || "dev",
-                mockUrl: `https://${p.slug}.mocklab.dev`,
+                mockUrl: `${apiBase}/m/${p.slug}`,
                 endpointsCount: p.endpointsCount || 0,
                 rulesCount: p.rulesCount || 0,
                 requestsToday: p.requestsToday || 0,
@@ -76,7 +62,7 @@ export default function ProjectsPage() {
           }
         }
       } catch {
-        // Fall back to stored local projects
+        // Ignore network errors
       }
 
       try {
