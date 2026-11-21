@@ -1,4 +1,5 @@
-import { Controller, Get } from "@nestjs/common";
+import { Controller, Get, Res, HttpStatus } from "@nestjs/common";
+import { Response } from "express";
 import { PrismaService } from "../prisma/prisma.service";
 import Redis from "ioredis";
 
@@ -7,7 +8,7 @@ export class HealthController {
   constructor(private readonly prisma: PrismaService) {}
 
   @Get()
-  async check() {
+  async check(@Res({ passthrough: true }) res?: Response) {
     let dbStatus = "not_configured";
     let redisStatus = "not_configured";
     let healthy = true;
@@ -44,6 +45,10 @@ export class HealthController {
       }
     } else if (process.env.NODE_ENV === "production") {
       healthy = false;
+    }
+
+    if (!healthy && res) {
+      res.status(HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     return {

@@ -48,19 +48,29 @@ jobs:
       - name: Run MockLab Contract Verification
         id: mocklab
         run: |
-          echo "Triggering contract run against project: ${projectId}..."
-          RESPONSE=$(curl -s -X POST "https://mocklab.dev/api/v1/projects/${projectId}/contract-runs" \\
+          echo "Triggering async contract run against project: ${projectId}..."
+          RESPONSE=$(curl -s -X POST "https://mocklab-api-prod.onrender.com/api/v1/projects/${projectId}/contract-runs" \\
             -H "Authorization: Bearer \${{ secrets.MOCKLAB_API_KEY }}" \\
             -H "Content-Type: application/json" \\
             -d '{"triggeredBy": "github-actions:\${{ github.sha }}"}')
           
           echo "$RESPONSE"
-          STATUS=$(echo "$RESPONSE" | jq -r '.status')
+          POLL_PATH=$(echo "$RESPONSE" | jq -r '.pollUrl')
           
-          if [ "$STATUS" = "FAIL_BREAKING" ]; then
-            echo "::error::Breaking API contract drift detected by MockLab!"
-            exit 1
-          fi
+          # Poll until run completes
+          for i in {1..30}; do
+            RESULT=$(curl -s "https://mocklab-api-prod.onrender.com$POLL_PATH" -H "Authorization: Bearer \${{ secrets.MOCKLAB_API_KEY }}")
+            STATUS=$(echo "$RESULT" | jq -r '.status')
+            if [ "$STATUS" != "PENDING" ] && [ -n "$STATUS" ]; then
+              echo "Contract run completed with status: $STATUS"
+              if [ "$STATUS" = "FAIL_BREAKING" ]; then
+                echo "::error::Breaking API contract drift detected by MockLab!"
+                exit 1
+              fi
+              break
+            fi
+            sleep 2
+          done
           
           echo "Contract verification passed successfully."
 `;
@@ -73,23 +83,38 @@ mocklab_contract_test:
   image: curlimages/curl:latest
   script:
     - |
-      RESPONSE=$(curl -s -X POST "https://mocklab.dev/api/v1/projects/${projectId}/contract-runs" \\
+      RESPONSE=$(curl -s -X POST "https://mocklab-api-prod.onrender.com/api/v1/projects/${projectId}/contract-runs" \\
         -H "Authorization: Bearer \${MOCKLAB_API_KEY}" \\
         -H "Content-Type: application/json")
       echo "$RESPONSE"
-      if echo "$RESPONSE" | grep -q '"status":"FAIL_BREAKING"'; then
-        echo "Breaking contract drift detected!"
-        exit 1
-      fi
+      POLL_PATH=$(echo "$RESPONSE" | grep -o '"pollUrl":"[^"]*' | cut -d'"' -f4)
+      for i in $(seq 1 30); do
+        RESULT=$(curl -s "https://mocklab-api-prod.onrender.com$POLL_PATH" -H "Authorization: Bearer \${MOCKLAB_API_KEY}")
+        if echo "$RESULT" | grep -q '"status":"FAIL_BREAKING"'; then
+          echo "Breaking contract drift detected!"
+          exit 1
+        fi
+        if echo "$RESULT" | grep -q '"status":"PASS"'; then
+          echo "Contract verification passed!"
+          exit 0
+        fi
+        sleep 2
+      done
   only:
     - main
     - merge_requests
 `;
 
-  const genericCurl = `curl -X POST "https://mocklab.dev/api/v1/projects/${projectId}/contract-runs" \\
+  const genericCurl = `# 1. Trigger async contract verification (HTTP 202)
+RESPONSE=$(curl -s -X POST "https://mocklab-api-prod.onrender.com/api/v1/projects/${projectId}/contract-runs" \\
   -H "Authorization: Bearer $MOCKLAB_API_KEY" \\
   -H "Content-Type: application/json" \\
-  -d '{"triggeredBy": "cli:script"}'
+  -d '{"triggeredBy": "cli:script"}')
+echo "$RESPONSE"
+
+# 2. Poll run status
+POLL_PATH=$(echo "$RESPONSE" | grep -o '"pollUrl":"[^"]*' | cut -d'"' -f4)
+curl -s "https://mocklab-api-prod.onrender.com$POLL_PATH" -H "Authorization: Bearer $MOCKLAB_API_KEY"
 `;
 
   const badgeMarkdown = `[![MockLab contract](https://mocklab.dev/api/v1/projects/${projectId}/badge)](https://mocklab.dev/projects/${projectId})`;

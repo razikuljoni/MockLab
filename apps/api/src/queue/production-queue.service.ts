@@ -9,6 +9,7 @@ export interface ContractRunJobPayload {
   triggeredBy?: string;
   providerUrlOverride?: string;
   providerAuthOverride?: string;
+  scheduleId?: string;
 }
 
 @Injectable()

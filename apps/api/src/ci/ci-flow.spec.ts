@@ -79,7 +79,7 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
     });
   });
 
-  it("1. Acceptance Criteria: External CI trigger runs contract test suite & returns status", async () => {
+  it("1. Acceptance Criteria: External CI trigger enqueues contract test suite & returns 202 accepted + pollUrl", async () => {
     // Add passing expectation
     await dataStore.createExpectation({
       projectId,
@@ -95,20 +95,26 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
     });
 
     const res = createMockResponse();
-    await ciController.triggerCiContractRun(
+    const result = await ciController.triggerCiContractRun(
       projectId,
       { triggeredBy: "ci:github-actions#42" },
       res as any
     );
 
-    expect(res._statusCode).toBe(200);
-    expect(res._body.status).toBe(RunStatus.PASS);
-    expect(res._body.passed).toBe(true);
-    expect(res._body.summary.pass).toBe(1);
-    expect(res._body.specHash).toBe("sha256_spec_v1");
+    expect(res._statusCode).toBe(202);
+    expect(result.status).toBe("accepted");
+    expect(result.runId).toBeDefined();
+    expect(result.pollUrl).toBe(`/api/v1/projects/${projectId}/contracts/runs/${result.runId}`);
+
+    // Wait for async execution
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const run = await dataStore.findContractRunById(result.runId);
+    expect(run?.status).toBe(RunStatus.PASS);
+    expect(run?.results.length).toBe(1);
+    expect(run?.results[0].verdict).toBe(Verdict.PASS);
   });
 
-  it("2. Acceptance Criteria: Failing/breaking contract causes CI endpoint to report failure (non-zero exit)", async () => {
+  it("2. Acceptance Criteria: Failing contract run reports breaking status asynchronously upon execution", async () => {
     // Create an expectation that will fail breaking by asserting against unreachable provider
     await dataStore.createExpectation({
       projectId,
@@ -125,15 +131,20 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
 
     // In a test with providerUrlOverride = 'unreachable', runner marks ERROR (not contract failure per §6.6)
     const errorRes = createMockResponse();
-    await ciController.triggerCiContractRun(
+    const result = await ciController.triggerCiContractRun(
       projectId,
       { providerUrlOverride: "unreachable" },
       errorRes as any
     );
 
-    expect(errorRes._statusCode).toBe(200);
-    expect(errorRes._body.status).toBe(RunStatus.ERROR);
-    expect(errorRes._body.passed).toBe(false);
+    expect(errorRes._statusCode).toBe(202);
+    expect(result.status).toBe("accepted");
+    expect(result.runId).toBeDefined();
+
+    // Wait for async execution
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const run = await dataStore.findContractRunById(result.runId);
+    expect(run?.status).toBe(RunStatus.ERROR);
   });
 
   it("3. Acceptance Criteria: SVG status badge renders passing (green) or failing (red) correctly", async () => {
@@ -233,5 +244,36 @@ describe("Phase 9 Schedules & CI Integration Acceptance Suite", () => {
 
     // Did NOT run synchronously in triggerSchedule
     expect(runnerSpy).not.toHaveBeenCalled();
+  });
+
+  it("7. Due schedule enqueued once does NOT re-enqueue on the next sweep (loop prevented)", async () => {
+    const mockQueueService = {
+      registerContractRunProcessor: vi.fn(),
+      enqueueContractRun: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    const queuedScheduler = new CiSchedulerService(
+      dataStore,
+      contractRunner,
+      mockQueueService
+    );
+
+    const sched = await dataStore.createContractSchedule({
+      projectId,
+      name: "Loop Prevention Schedule",
+      cron: "0 * * * *",
+      enabled: true,
+    });
+    sched.nextRunAt = new Date(Date.now() - 5000);
+
+    // First sweep triggers it
+    const sweep1 = await queuedScheduler.sweepDueSchedules();
+    expect(sweep1).toBe(1);
+    expect(mockQueueService.enqueueContractRun).toHaveBeenCalledTimes(1);
+
+    // Immediately next sweep must NOT re-enqueue because nextRunAt was advanced
+    const sweep2 = await queuedScheduler.sweepDueSchedules();
+    expect(sweep2).toBe(0);
+    expect(mockQueueService.enqueueContractRun).toHaveBeenCalledTimes(1);
   });
 });

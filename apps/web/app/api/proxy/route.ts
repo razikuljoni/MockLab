@@ -12,13 +12,16 @@ export async function POST(req: NextRequest) {
     // Resolve localhost / internal API mapping if needed
     let targetUrl = url;
     if (targetUrl.includes(".mocklab.dev")) {
-      // Route through mock engine (Render API or local dev)
-      const slugMatch = targetUrl.match(/https?:\/\/([^.]+)\.mocklab\.dev(.*)/);
-      if (slugMatch) {
-        const slug = slugMatch[1];
-        const restPath = slugMatch[2] || "";
-        const apiBase = getApiBaseUrl();
-        targetUrl = `${apiBase.replace(/\/+$/, "")}/m/${slug}${restPath}`;
+      try {
+        const parsed = new URL(targetUrl);
+        if (parsed.hostname.endsWith(".mocklab.dev")) {
+          const slug = parsed.hostname.split(".")[0];
+          const restPath = parsed.pathname + parsed.search;
+          const apiBase = getApiBaseUrl();
+          targetUrl = `${apiBase.replace(/\/+$/, "")}/m/${slug}${restPath}`;
+        }
+      } catch {
+        // Fallback if URL constructor fails
       }
     }
 
