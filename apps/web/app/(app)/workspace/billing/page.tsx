@@ -1,20 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Receipt,
-  CreditCard,
   Check,
-  Zap,
-  ArrowUpRight,
   TrendingUp,
   Activity,
   Layers,
   Clock,
   Download,
-  AlertCircle,
-  Sparkles,
 } from "lucide-react";
+import { WORKSPACE_TIER_LIMITS } from "@mocklab/shared";
+import { apiRequest, getActiveWorkspaceId } from "../../../../lib/api";
 
 interface PlanTier {
   id: "FREE" | "PRO" | "TEAM";
@@ -41,11 +38,11 @@ const TIERS: PlanTier[] = [
     periodDisplay: "/ forever",
     description: "Ideal for individual developers and small open-source mock experimentation.",
     limits: {
-      mockRequests: "5,000 / mo",
-      contractRuns: "100 / mo",
-      logRetention: "7 Days",
-      projects: "2 Projects",
-      teamMembers: "3 Members",
+      mockRequests: `${WORKSPACE_TIER_LIMITS.FREE.requestsPerMonth.toLocaleString()} / mo`,
+      contractRuns: `${WORKSPACE_TIER_LIMITS.FREE.contractRunsPerMonth.toLocaleString()} / mo`,
+      logRetention: `${WORKSPACE_TIER_LIMITS.FREE.logRetentionDays} Days`,
+      projects: `${WORKSPACE_TIER_LIMITS.FREE.projectsLimit} Projects`,
+      teamMembers: `${WORKSPACE_TIER_LIMITS.FREE.teamMembersLimit} Members`,
     },
     features: [
       "Core Mock Engine & Routing",
@@ -63,11 +60,11 @@ const TIERS: PlanTier[] = [
     description: "Built for agile engineering teams shipping microservices and CI contracts.",
     badge: "Most Popular",
     limits: {
-      mockRequests: "100,000 / mo",
-      contractRuns: "5,000 / mo",
-      logRetention: "30 Days",
-      projects: "20 Projects",
-      teamMembers: "10 Members",
+      mockRequests: `${WORKSPACE_TIER_LIMITS.PRO.requestsPerMonth.toLocaleString()} / mo`,
+      contractRuns: `${WORKSPACE_TIER_LIMITS.PRO.contractRunsPerMonth.toLocaleString()} / mo`,
+      logRetention: `${WORKSPACE_TIER_LIMITS.PRO.logRetentionDays} Days`,
+      projects: `${WORKSPACE_TIER_LIMITS.PRO.projectsLimit} Projects`,
+      teamMembers: `${WORKSPACE_TIER_LIMITS.PRO.teamMembersLimit} Members`,
     },
     features: [
       "Everything in Free, plus:",
@@ -85,11 +82,11 @@ const TIERS: PlanTier[] = [
     periodDisplay: "Coming soon in GA",
     description: "Organization scale with multi-project workspaces and higher rate limits.",
     limits: {
-      mockRequests: "1,000,000 / mo",
-      contractRuns: "25,000 / mo",
-      logRetention: "90 Days",
-      projects: "100 Projects",
-      teamMembers: "50 Members",
+      mockRequests: `${WORKSPACE_TIER_LIMITS.TEAM.requestsPerMonth.toLocaleString()} / mo`,
+      contractRuns: `${WORKSPACE_TIER_LIMITS.TEAM.contractRunsPerMonth.toLocaleString()} / mo`,
+      logRetention: `${WORKSPACE_TIER_LIMITS.TEAM.logRetentionDays} Days`,
+      projects: `${WORKSPACE_TIER_LIMITS.TEAM.projectsLimit} Projects`,
+      teamMembers: `${WORKSPACE_TIER_LIMITS.TEAM.teamMembersLimit} Members`,
     },
     features: [
       "Everything in Pro, plus:",
@@ -130,11 +127,75 @@ export default function WorkspaceBillingPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const [upgradedAlert, setUpgradedAlert] = useState<string | null>(null);
 
+  const [usage, setUsage] = useState({
+    requestsThisMonth: 0,
+    requestsLimit: WORKSPACE_TIER_LIMITS.FREE.requestsPerMonth,
+    contractRunsThisMonth: 0,
+    contractRunsLimit: WORKSPACE_TIER_LIMITS.FREE.contractRunsPerMonth,
+    projectsCount: 0,
+    projectsLimit: WORKSPACE_TIER_LIMITS.FREE.projectsLimit,
+    logRetentionDays: WORKSPACE_TIER_LIMITS.FREE.logRetentionDays,
+  });
+
+  useEffect(() => {
+    async function loadBilling() {
+      const wsId = getActiveWorkspaceId();
+      const res = await apiRequest<{
+        plan: "FREE" | "PRO" | "TEAM";
+        usage: {
+          plan: "FREE" | "PRO" | "TEAM";
+          requestsThisMonth: number;
+          requestsLimit: number;
+          projectsCount: number;
+          projectsLimit: number;
+          rulesCount: number;
+          rulesLimit: number;
+          teamMembersCount: number;
+          teamMembersLimit: number;
+        };
+      }>(`/api/v1/workspaces/${wsId}/billing`);
+
+      if (res.data?.usage) {
+        const u = res.data.usage;
+        const planTier = u.plan && WORKSPACE_TIER_LIMITS[u.plan] ? u.plan : "FREE";
+        setActivePlan(planTier);
+        const limits = WORKSPACE_TIER_LIMITS[planTier];
+
+        setUsage({
+          requestsThisMonth: u.requestsThisMonth ?? 0,
+          requestsLimit: u.requestsLimit || limits.requestsPerMonth,
+          contractRunsThisMonth: 0,
+          contractRunsLimit: limits.contractRunsPerMonth,
+          projectsCount: u.projectsCount ?? 0,
+          projectsLimit: u.projectsLimit || limits.projectsLimit,
+          logRetentionDays: limits.logRetentionDays,
+        });
+      }
+    }
+
+    loadBilling();
+  }, []);
+
   const handleSelectPlan = (tierId: "FREE" | "PRO" | "TEAM") => {
     if (tierId === "FREE") return;
     setUpgradedAlert(`Self-serve ${tierId} plan upgrade is coming soon. MockLab is free during early preview.`);
     setTimeout(() => setUpgradedAlert(null), 5000);
   };
+
+  const reqPct = usage.requestsLimit > 0
+    ? Math.min(100, (usage.requestsThisMonth / usage.requestsLimit) * 100)
+    : 0;
+  const reqPctStr = reqPct.toFixed(1);
+  const remainingReqs = Math.max(0, usage.requestsLimit - usage.requestsThisMonth);
+
+  const runsPct = usage.contractRunsLimit > 0
+    ? Math.min(100, (usage.contractRunsThisMonth / usage.contractRunsLimit) * 100)
+    : 0;
+  const remainingRuns = Math.max(0, usage.contractRunsLimit - usage.contractRunsThisMonth);
+
+  const projPct = usage.projectsLimit > 0
+    ? Math.min(100, (usage.projectsCount / usage.projectsLimit) * 100)
+    : 0;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-12">
@@ -198,12 +259,19 @@ export default function WorkspaceBillingPage() {
                 <Activity className="w-3.5 h-3.5 text-[var(--signal)]" />
                 Mock Requests
               </span>
-              <span className="font-mono text-[var(--ink)]">1,420 / 10,000</span>
+              <span className="font-mono text-[var(--ink)]">
+                {usage.requestsThisMonth.toLocaleString()} / {usage.requestsLimit.toLocaleString()}
+              </span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--surface-0)] overflow-hidden">
-              <div className="h-full bg-[var(--signal)] rounded-full transition-all" style={{ width: "14.2%" }}></div>
+              <div
+                className="h-full bg-[var(--signal)] rounded-full transition-all"
+                style={{ width: `${reqPct}%` }}
+              ></div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)] font-mono">14.2% used (8,580 remaining)</div>
+            <div className="text-[11px] text-[var(--ink-3)] font-mono">
+              {reqPctStr}% used ({remainingReqs.toLocaleString()} remaining)
+            </div>
           </div>
 
           {/* Contract Runs */}
@@ -213,12 +281,19 @@ export default function WorkspaceBillingPage() {
                 <TrendingUp className="w-3.5 h-3.5 text-[var(--info)]" />
                 Contract Runs
               </span>
-              <span className="font-mono text-[var(--ink)]">18 / 100</span>
+              <span className="font-mono text-[var(--ink)]">
+                {usage.contractRunsThisMonth.toLocaleString()} / {usage.contractRunsLimit.toLocaleString()}
+              </span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--surface-0)] overflow-hidden">
-              <div className="h-full bg-[var(--info)] rounded-full transition-all" style={{ width: "18%" }}></div>
+              <div
+                className="h-full bg-[var(--info)] rounded-full transition-all"
+                style={{ width: `${runsPct}%` }}
+              ></div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)] font-mono">18.0% used (82 remaining)</div>
+            <div className="text-[11px] text-[var(--ink-3)] font-mono">
+              {runsPct.toFixed(1)}% used ({remainingRuns.toLocaleString()} remaining)
+            </div>
           </div>
 
           {/* Active Projects */}
@@ -228,12 +303,19 @@ export default function WorkspaceBillingPage() {
                 <Layers className="w-3.5 h-3.5 text-[var(--warning)]" />
                 Active Projects
               </span>
-              <span className="font-mono text-[var(--ink)]">2 / 2</span>
+              <span className="font-mono text-[var(--ink)]">
+                {usage.projectsCount} / {usage.projectsLimit}
+              </span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--surface-0)] overflow-hidden">
-              <div className="h-full bg-[var(--warning)] rounded-full transition-all" style={{ width: "100%" }}></div>
+              <div
+                className="h-full bg-[var(--warning)] rounded-full transition-all"
+                style={{ width: `${projPct}%` }}
+              ></div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)] font-mono">2 of 2 projects allocated</div>
+            <div className="text-[11px] text-[var(--ink-3)] font-mono">
+              {usage.projectsCount} of {usage.projectsLimit} projects allocated
+            </div>
           </div>
 
           {/* Log Retention */}
@@ -243,12 +325,19 @@ export default function WorkspaceBillingPage() {
                 <Clock className="w-3.5 h-3.5 text-[var(--success)]" />
                 Log Retention
               </span>
-              <span className="font-mono text-[var(--ink)]">7 / 7 Days</span>
+              <span className="font-mono text-[var(--ink)]">
+                {usage.logRetentionDays} / {usage.logRetentionDays} Days
+              </span>
             </div>
             <div className="w-full h-2 rounded-full bg-[var(--surface-0)] overflow-hidden">
-              <div className="h-full bg-[var(--success)] rounded-full transition-all" style={{ width: "100%" }}></div>
+              <div
+                className="h-full bg-[var(--success)] rounded-full transition-all"
+                style={{ width: "100%" }}
+              ></div>
             </div>
-            <div className="text-[11px] text-[var(--ink-3)] font-mono">Upgrade to Pro for 30 days</div>
+            <div className="text-[11px] text-[var(--ink-3)] font-mono">
+              {activePlan === "FREE" ? "Upgrade to Pro for 30 days" : "Retention active"}
+            </div>
           </div>
         </div>
       </div>

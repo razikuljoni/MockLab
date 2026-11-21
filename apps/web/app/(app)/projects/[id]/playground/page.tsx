@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "next/navigation";
 import { MonacoEditor } from "../../../../../components/monaco-editor";
+import { apiRequest, getApiBaseUrl } from "../../../../../lib/api";
 import {
   Send,
   Terminal,
@@ -95,14 +96,23 @@ export default function PlaygroundPage() {
   // Sidebar tree toggle & filter
   const [sidebarTab, setSidebarTab] = useState<"endpoints" | "history">("endpoints");
   const [treeSearch, setTreeSearch] = useState("");
+  const [endpointsList, setEndpointsList] = useState<{ method: string; path: string; summary: string }[]>([]);
 
-  const sampleEndpoints = [
-    { method: "GET", path: "/pets", summary: "List all pets" },
-    { method: "POST", path: "/pets", summary: "Create a pet" },
-    { method: "GET", path: "/pets/{id}", summary: "Get pet by ID" },
-    { method: "DELETE", path: "/pets/{id}", summary: "Delete pet" },
-    { method: "GET", path: "/store/inventory", summary: "Get inventory" },
-  ];
+  useEffect(() => {
+    apiRequest<{ endpoints: any[] }>(`/api/v1/projects/${projectId}/endpoints`).then((res) => {
+      if (res.data?.endpoints && Array.isArray(res.data.endpoints) && res.data.endpoints.length > 0) {
+        setEndpointsList(
+          res.data.endpoints.map((e: any) => ({
+            method: e.method,
+            path: e.path,
+            summary: e.summary || `${e.method} ${e.path}`,
+          }))
+        );
+      } else {
+        setEndpointsList([]);
+      }
+    });
+  }, [projectId]);
 
   const getMethodBadgeClass = (m: string) => {
     switch (m) {
@@ -130,7 +140,8 @@ export default function PlaygroundPage() {
       ? "?" + activeParams.map((p) => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join("&")
       : "";
 
-    const fullUrl = `https://${projectId}.mocklab.dev${path}${queryString}`;
+    const apiBase = getApiBaseUrl();
+    const fullUrl = `${apiBase}/m/${projectId}${path}${queryString}`;
 
     // Assemble headers
     const reqHeaders: Record<string, string> = {};
@@ -276,30 +287,36 @@ export default function PlaygroundPage() {
           {sidebarTab === "endpoints" && (
             <div className="space-y-1">
               <span className="text-[10px] font-mono text-[var(--ink-3)] uppercase px-2 block">
-                Pets Resource
+                Project Endpoints
               </span>
-              {sampleEndpoints.map((ep, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setMethod(ep.method);
-                    setPath(ep.path.replace("{id}", "42"));
-                  }}
-                  className="w-full p-2 rounded-md hover:bg-[var(--surface-2)] flex items-center justify-between text-left transition-colors font-mono"
-                >
-                  <div className="flex items-center gap-2 truncate">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getMethodBadgeClass(
-                        ep.method
-                      )}`}
-                    >
-                      {ep.method}
-                    </span>
-                    <span className="text-[var(--ink)] text-[11px] truncate">{ep.path}</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-[var(--ink-3)] shrink-0" />
-                </button>
-              ))}
+              {endpointsList.length === 0 ? (
+                <div className="p-3 text-[11px] text-[var(--ink-3)] text-center">
+                  No endpoints found
+                </div>
+              ) : (
+                endpointsList.map((ep, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setMethod(ep.method);
+                      setPath(ep.path.replace("{id}", "42").replace("{petId}", "42"));
+                    }}
+                    className="w-full p-2 rounded-md hover:bg-[var(--surface-2)] flex items-center justify-between text-left transition-colors font-mono"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getMethodBadgeClass(
+                          ep.method
+                        )}`}
+                      >
+                        {ep.method}
+                      </span>
+                      <span className="text-[var(--ink)] text-[11px] truncate">{ep.path}</span>
+                    </div>
+                    <ChevronRight className="w-3.5 h-3.5 text-[var(--ink-3)] shrink-0" />
+                  </button>
+                ))
+              )}
             </div>
           )}
 

@@ -1,19 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import {
-  ListTree,
   Plus,
   Search,
   Terminal,
   Sliders,
   ShieldCheck,
-  ChevronRight,
-  Filter,
   X,
+  Layers,
 } from "lucide-react";
+import { apiRequest } from "../../../../../lib/api";
+
+interface EndpointItem {
+  operationId: string;
+  method: string;
+  path: string;
+  summary: string;
+  tag: string;
+  rulesCount: number;
+  hitCount: number;
+  contractStatus: string;
+}
 
 export default function EndpointsListPage() {
   const params = useParams();
@@ -21,96 +31,45 @@ export default function EndpointsListPage() {
 
   const [search, setSearch] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("All");
+  const [tags, setTags] = useState<string[]>(["All"]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newMethod, setNewMethod] = useState("GET");
   const [newPath, setNewPath] = useState("");
   const [newSummary, setNewSummary] = useState("");
-  const [newTag, setNewTag] = useState("Pets");
+  const [newTag, setNewTag] = useState("Custom");
+  const [loading, setLoading] = useState(true);
 
-  const [endpointList, setEndpointList] = useState([
-    {
-      operationId: "GET /pets",
-      method: "GET",
-      path: "/pets",
-      summary: "List all pets with pagination",
-      tag: "Pets",
-      rulesCount: 3,
-      hitCount: 14290,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "POST /pets",
-      method: "POST",
-      path: "/pets",
-      summary: "Create a new pet in the stateful bucket",
-      tag: "Pets",
-      rulesCount: 2,
-      hitCount: 5210,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "GET /pets/{petId}",
-      method: "GET",
-      path: "/pets/{petId}",
-      summary: "Find pet by unique ID or throw 404",
-      tag: "Pets",
-      rulesCount: 4,
-      hitCount: 22400,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "PUT /pets/{petId}",
-      method: "PUT",
-      path: "/pets/{petId}",
-      summary: "Update existing pet attributes",
-      tag: "Pets",
-      rulesCount: 2,
-      hitCount: 890,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "DELETE /pets/{petId}",
-      method: "DELETE",
-      path: "/pets/{petId}",
-      summary: "Delete a pet from stateful bucket",
-      tag: "Pets",
-      rulesCount: 1,
-      hitCount: 450,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "GET /store/inventory",
-      method: "GET",
-      path: "/store/inventory",
-      summary: "Returns pet inventory status map",
-      tag: "Store",
-      rulesCount: 2,
-      hitCount: 3120,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "POST /store/order",
-      method: "POST",
-      path: "/store/order",
-      summary: "Place an order for a pet",
-      tag: "Store",
-      rulesCount: 2,
-      hitCount: 1840,
-      contractStatus: "PASS",
-    },
-    {
-      operationId: "GET /store/order/{orderId}",
-      method: "GET",
-      path: "/store/order/{orderId}",
-      summary: "Find purchase order by ID",
-      tag: "Store",
-      rulesCount: 1,
-      hitCount: 620,
-      contractStatus: "PASS",
-    },
-  ]);
+  const [endpointList, setEndpointList] = useState<EndpointItem[]>([]);
 
-  const tags = ["All", "Pets", "Store"];
+  const loadEndpoints = async () => {
+    const res = await apiRequest<{ endpoints: any[]; tags: string[] }>(
+      `/api/v1/projects/${projectId}/endpoints`
+    );
+    if (res.data?.endpoints && Array.isArray(res.data.endpoints)) {
+      const mapped = res.data.endpoints.map((ep) => ({
+        operationId: ep.operationId || `${ep.method} ${ep.path}`,
+        method: ep.method || "GET",
+        path: ep.path || "/",
+        summary: ep.summary || `Endpoint for ${ep.method} ${ep.path}`,
+        tag: ep.tags?.[0] || ep.tag || "Custom",
+        rulesCount: ep.rulesCount ?? 1,
+        hitCount: ep.hitCount ?? 0,
+        contractStatus: ep.contractStatus || "PASS",
+      }));
+      setEndpointList(mapped);
+
+      const uniqueTags = ["All", ...Array.from(new Set(res.data.tags || []))];
+      setTags(uniqueTags);
+    } else {
+      setEndpointList([]);
+      setTags(["All"]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadEndpoints();
+  }, [projectId]);
 
   const getMethodBadgeClass = (method: string) => {
     switch (method) {
@@ -138,26 +97,34 @@ export default function EndpointsListPage() {
     return matchesSearch && matchesTag;
   });
 
-  const handleAddEndpointSubmit = (e: React.FormEvent) => {
+  const handleAddEndpointSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPath.trim()) return;
 
     const formattedPath = newPath.startsWith("/") ? newPath.trim() : `/${newPath.trim()}`;
-    const newEp = {
-      operationId: `${newMethod} ${formattedPath}`,
-      method: newMethod,
-      path: formattedPath,
-      summary: newSummary.trim() || `Endpoint for ${newMethod} ${formattedPath}`,
-      tag: newTag.trim() || "Custom",
-      rulesCount: 1,
-      hitCount: 0,
-      contractStatus: "PASS",
-    };
+    const opId = `${newMethod} ${formattedPath}`;
+    const summary = newSummary.trim() || `Endpoint for ${newMethod} ${formattedPath}`;
 
-    setEndpointList([newEp, ...endpointList]);
+    // Create a mock rule for this endpoint on the API
+    await apiRequest(`/api/v1/projects/${projectId}/rules`, {
+      method: "POST",
+      body: JSON.stringify({
+        operationId: opId,
+        name: `${summary} (default)`,
+        matcher: { method: newMethod, path: formattedPath },
+        response: {
+          status: 200,
+          latencyMs: 20,
+          fault: "none",
+          body: JSON.stringify({ message: "Mock response", path: formattedPath }, null, 2),
+        },
+      }),
+    });
+
     setIsModalOpen(false);
     setNewPath("");
     setNewSummary("");
+    await loadEndpoints();
   };
 
   return (
@@ -218,7 +185,7 @@ export default function EndpointsListPage() {
         </div>
       </div>
 
-      {/* Endpoints Table (§2.1 Screen 9) */}
+      {/* Endpoints Table */}
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-1)] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs text-left">
@@ -234,79 +201,96 @@ export default function EndpointsListPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--border)] text-[var(--ink)]">
-              {filteredEndpoints.map((ep) => (
-                <tr key={ep.operationId} className="hover:bg-[var(--surface-2)] transition-colors">
-                  {/* Method Chip (§3.1) */}
-                  <td className="p-3.5">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono border ${getMethodBadgeClass(
-                        ep.method
-                      )}`}
-                    >
-                      {ep.method}
-                    </span>
-                  </td>
-
-                  {/* Path & Summary */}
-                  <td className="p-3.5">
-                    <div className="font-mono font-medium text-[var(--ink)] text-xs">
-                      {ep.path}
-                    </div>
-                    <div className="text-[11px] text-[var(--ink-3)] truncate max-w-md">
-                      {ep.summary}
-                    </div>
-                  </td>
-
-                  {/* Tag */}
-                  <td className="p-3.5">
-                    <span className="px-2 py-0.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-[10px] text-[var(--ink-2)] font-mono">
-                      {ep.tag}
-                    </span>
-                  </td>
-
-                  {/* Rules Count */}
-                  <td className="p-3.5 text-right font-mono">
-                    <span className="px-2 py-0.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-[11px] font-semibold text-[var(--ink)]">
-                      {ep.rulesCount}
-                    </span>
-                  </td>
-
-                  {/* Total Hits */}
-                  <td className="p-3.5 text-right font-mono text-[var(--signal)]">
-                    {ep.hitCount.toLocaleString()}
-                  </td>
-
-                  {/* Contract Status */}
-                  <td className="p-3.5 text-center">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/20 font-semibold text-[10px]">
-                      <ShieldCheck className="w-3 h-3" />
-                      <span>{ep.contractStatus}</span>
-                    </span>
-                  </td>
-
-                  {/* Actions */}
-                  <td className="p-3.5 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Link
-                        href={`/projects/${projectId}/playground?endpoint=${encodeURIComponent(
-                          ep.operationId
-                        )}`}
-                        className="p-1.5 rounded hover:bg-[var(--surface-0)] text-[var(--ink-2)] hover:text-[var(--signal)]"
-                        title="Send in Playground"
-                      >
-                        <Terminal className="w-3.5 h-3.5" />
-                      </Link>
-                      <Link
-                        href={`/projects/${projectId}/endpoints/users/rules`}
-                        className="p-1.5 rounded hover:bg-[var(--surface-0)] text-[var(--ink-2)] hover:text-[var(--ink)]"
-                        title="Edit Mock Rules"
-                      >
-                        <Sliders className="w-3.5 h-3.5" />
-                      </Link>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-xs text-[var(--ink-2)]">
+                    Loading endpoints from API...
                   </td>
                 </tr>
-              ))}
+              ) : filteredEndpoints.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center space-y-2">
+                    <Layers className="w-6 h-6 text-[var(--ink-3)] mx-auto mb-1" />
+                    <p className="text-xs text-[var(--ink-2)]">
+                      No endpoints found. Import an OpenAPI specification or add an endpoint above.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredEndpoints.map((ep) => (
+                  <tr key={ep.operationId} className="hover:bg-[var(--surface-2)] transition-colors">
+                    {/* Method Chip */}
+                    <td className="p-3.5">
+                      <span
+                        className={`px-2 py-0.5 rounded text-[11px] font-bold font-mono border ${getMethodBadgeClass(
+                          ep.method
+                        )}`}
+                      >
+                        {ep.method}
+                      </span>
+                    </td>
+
+                    {/* Path & Summary */}
+                    <td className="p-3.5">
+                      <div className="font-mono font-medium text-[var(--ink)] text-xs">
+                        {ep.path}
+                      </div>
+                      <div className="text-[11px] text-[var(--ink-3)] truncate max-w-md">
+                        {ep.summary}
+                      </div>
+                    </td>
+
+                    {/* Tag */}
+                    <td className="p-3.5">
+                      <span className="px-2 py-0.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-[10px] text-[var(--ink-2)] font-mono">
+                        {ep.tag}
+                      </span>
+                    </td>
+
+                    {/* Rules Count */}
+                    <td className="p-3.5 text-right font-mono">
+                      <span className="px-2 py-0.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-[11px] font-semibold text-[var(--ink)]">
+                        {ep.rulesCount}
+                      </span>
+                    </td>
+
+                    {/* Total Hits */}
+                    <td className="p-3.5 text-right font-mono text-[var(--signal)]">
+                      {ep.hitCount.toLocaleString()}
+                    </td>
+
+                    {/* Contract Status */}
+                    <td className="p-3.5 text-center">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--success)]/10 text-[var(--success)] border border-[var(--success)]/20 font-semibold text-[10px]">
+                        <ShieldCheck className="w-3 h-3" />
+                        <span>{ep.contractStatus}</span>
+                      </span>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="p-3.5 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/projects/${projectId}/playground?endpoint=${encodeURIComponent(
+                            ep.operationId
+                          )}`}
+                          className="p-1.5 rounded hover:bg-[var(--surface-0)] text-[var(--ink-2)] hover:text-[var(--signal)]"
+                          title="Send in Playground"
+                        >
+                          <Terminal className="w-3.5 h-3.5" />
+                        </Link>
+                        <Link
+                          href={`/projects/${projectId}/endpoints/users/rules`}
+                          className="p-1.5 rounded hover:bg-[var(--surface-0)] text-[var(--ink-2)] hover:text-[var(--ink)]"
+                          title="Edit Mock Rules"
+                        >
+                          <Sliders className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -319,79 +303,88 @@ export default function EndpointsListPage() {
             <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
               <h3 className="text-sm font-semibold text-[var(--ink)] font-mono flex items-center gap-2">
                 <Plus className="w-4 h-4 text-[var(--signal)]" />
-                Add Mock Endpoint
+                <span>Add Endpoint</span>
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-[var(--ink-3)] hover:text-[var(--ink)] p-1 rounded"
+                className="text-[var(--ink-3)] hover:text-[var(--ink)]"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddEndpointSubmit} className="space-y-4 text-xs">
-              <div className="space-y-1">
-                <label className="text-[var(--ink-2)] font-mono">HTTP Method</label>
-                <select
-                  value={newMethod}
-                  onChange={(e) => setNewMethod(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
-                >
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                  <option value="PUT">PUT</option>
-                  <option value="PATCH">PATCH</option>
-                  <option value="DELETE">DELETE</option>
-                </select>
+            <form onSubmit={handleAddEndpointSubmit} className="space-y-4">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="text-[11px] font-medium text-[var(--ink-2)] mb-1 block">
+                    Method
+                  </label>
+                  <select
+                    value={newMethod}
+                    onChange={(e) => setNewMethod(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] font-mono"
+                  >
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-[11px] font-medium text-[var(--ink-2)] mb-1 block">
+                    Path
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="/api/v1/resource"
+                    value={newPath}
+                    onChange={(e) => setNewPath(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[var(--ink-2)] font-mono">Resource Path</label>
+              <div>
+                <label className="text-[11px] font-medium text-[var(--ink-2)] mb-1 block">
+                  Summary
+                </label>
                 <input
                   type="text"
-                  required
-                  placeholder="/api/v1/orders"
-                  value={newPath}
-                  onChange={(e) => setNewPath(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[var(--ink-2)] font-mono">Summary / Description</label>
-                <input
-                  type="text"
-                  placeholder="Fetch active user orders"
+                  placeholder="Short description of this endpoint operation"
                   value={newSummary}
                   onChange={(e) => setNewSummary(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                  className="w-full px-2.5 py-1.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[var(--ink-2)] font-mono">Category / Tag</label>
+              <div>
+                <label className="text-[11px] font-medium text-[var(--ink-2)] mb-1 block">
+                  Tag Group
+                </label>
                 <input
                   type="text"
-                  placeholder="Pets, Store, Orders"
+                  placeholder="e.g. Users, Billing, Products"
                   value={newTag}
                   onChange={(e) => setNewTag(e.target.value)}
-                  className="w-full px-3 py-1.5 rounded border border-[var(--border)] bg-[var(--surface-0)] text-[var(--ink)] focus:outline-none focus:border-[var(--signal)]"
+                  className="w-full px-2.5 py-1.5 rounded bg-[var(--surface-0)] border border-[var(--border)] text-xs text-[var(--ink)] font-mono focus:outline-none focus:border-[var(--signal)]"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[var(--border)]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--border)]">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-3 py-1.5 rounded border border-[var(--border)] text-[var(--ink-2)] hover:bg-[var(--surface-2)]"
+                  className="px-3 py-1.5 rounded text-xs text-[var(--ink-2)] hover:text-[var(--ink)]"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 rounded bg-[var(--signal)] text-[var(--surface-0)] font-semibold hover:opacity-90 transition-opacity"
+                  className="px-3.5 py-1.5 rounded bg-[var(--signal)] text-[var(--surface-0)] font-semibold text-xs hover:opacity-90"
                 >
-                  Save Endpoint
+                  Create Endpoint
                 </button>
               </div>
             </form>
