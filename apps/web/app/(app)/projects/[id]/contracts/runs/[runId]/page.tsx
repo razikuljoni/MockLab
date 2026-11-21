@@ -280,7 +280,11 @@ export default function ContractRunDetailPage() {
               Run Again
             </button>
             <button
-              onClick={() => handleCopy(`[![MockLab Contract](https://mocklab.dev/badge/${projectId})](https://mocklab.dev)`, "badge")}
+              onClick={() => {
+                const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com";
+                const appBase = process.env.NEXT_PUBLIC_APP_URL || "https://mocklab-theta.vercel.app";
+                handleCopy(`[![MockLab Contract](${apiBase}/api/v1/projects/${projectId}/badge)](${appBase}/projects/${projectId})`, "badge");
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-mono bg-[#16190B] text-white border border-[#282F14] hover:bg-[#1D220E] transition-colors"
             >
               {copiedKey === "badge" ? <Check className="w-3.5 h-3.5 text-[#BFFF3C]" /> : <Copy className="w-3.5 h-3.5" />}
@@ -304,7 +308,7 @@ export default function ContractRunDetailPage() {
             <span className="text-[#282F14]">|</span>
             <div className="flex items-center gap-1.5 text-[#A1A78E]">
               <span>Duration:</span>
-              <span className="text-white font-semibold">1,420 ms</span>
+              <span className="text-white font-semibold">480 ms</span>
             </div>
             <span className="text-[#282F14]">|</span>
             <div className="flex items-center gap-1.5 text-[#A1A78E]">

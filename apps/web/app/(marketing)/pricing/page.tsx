@@ -10,7 +10,7 @@ export default function PricingPage() {
   const faqs = [
     {
       q: "What counts as a mock request?",
-      a: "Every inbound HTTP request to your hosted mock URL (e.g. https://<slug>.mocklab.dev/...) counts as one mock request. Health checks and requests that return 404 count toward your monthly quota.",
+      a: "Every inbound HTTP request to your hosted mock URL (e.g. https://mocklab-api-prod.onrender.com/m/<slug>/...) counts as one mock request. Health checks and requests that return 404 count toward your monthly quota.",
     },
     {
       q: "How does contract testing work in CI?",

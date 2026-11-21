@@ -90,7 +90,7 @@ export class CiSchedulerService implements OnModuleInit, OnModuleDestroy {
           r.diff?.lines?.filter((l) => l.breaking) || [{ path: "$", message: "Breaking contract failure" }]
         );
         this.emailService.sendBreakingChangeAlert({
-          recipientEmail: "team-alerts@mocklab.dev",
+          recipientEmail: process.env.ALERT_EMAIL || "alerts@mocklab.internal",
           projectName: projectId,
           runId: runResult.id,
           triggeredBy,

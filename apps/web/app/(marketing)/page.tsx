@@ -90,7 +90,7 @@ export default function LandingPage() {
   };
 
   const copyMockUrl = () => {
-    navigator.clipboard.writeText("https://petstore.mocklab.dev");
+    navigator.clipboard.writeText("https://mocklab-api-prod.onrender.com/m/petstore");
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
   };
@@ -177,7 +177,7 @@ export default function LandingPage() {
               <div className="w-3 h-3 rounded-full bg-[#FFBD2E]/80 border border-[#DEA123]/40" />
               <div className="w-3 h-3 rounded-full bg-[#27C93F]/80 border border-[#1AAB29]/40" />
               <span className="ml-3 font-mono text-xs text-[var(--ink-2)] hidden sm:inline">
-                mocklab-workstation :: live-runner [cluster-us-east-1]
+                mocklab-workstation :: live-demo-preview [petstore interactive demo]
               </span>
             </div>
             <div className="flex items-center gap-3 font-mono text-xs text-[var(--ink-2)]">
@@ -196,7 +196,7 @@ export default function LandingPage() {
                 GET
               </span>
               <span className="font-mono text-xs text-[var(--ink)] ml-3 select-all">
-                https://petstore.mocklab.dev/v1/users
+                https://mocklab-api-prod.onrender.com/m/petstore/v1/users
               </span>
             </div>
             <button
@@ -336,54 +336,37 @@ export default function LandingPage() {
                     value={schemaUrl}
                     onChange={(e) => setSchemaUrl(e.target.value)}
                     className="flex-1 bg-transparent px-2 text-[var(--ink)] font-mono text-xs focus:outline-none"
+                    placeholder="https://petstore.swagger.io/v2/swagger.json"
                   />
-                  <button
-                    onClick={handleSimulateImport}
-                    disabled={isSyncing}
-                    className="h-8 px-3 rounded bg-[var(--signal)] text-[var(--surface-0)] font-mono text-xs font-semibold hover:brightness-110 whitespace-nowrap transition-all shadow-sm disabled:opacity-50"
+                  <Link
+                    href={`/dashboard?import=${encodeURIComponent(schemaUrl)}`}
+                    className="h-8 px-3 rounded bg-[var(--signal)] text-[var(--surface-0)] font-mono text-xs font-semibold hover:brightness-110 whitespace-nowrap transition-all shadow-sm flex items-center gap-1.5"
                   >
-                    {isSyncing ? "Syncing..." : "Sync Spec"}
-                  </button>
+                    <span>Import in App</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
                 </div>
 
-                {/* Progress Step Pills */}
+                {/* Capability Badges */}
                 <div className="grid grid-cols-3 gap-2 text-center font-mono text-xs">
-                  <div
-                    className={`p-2 rounded font-medium flex items-center justify-center gap-1 border transition-colors ${
-                      syncStep >= 1
-                        ? "bg-[var(--surface-2)] text-[var(--signal)] border-[var(--signal)]/30"
-                        : "bg-[var(--surface-3)] text-[var(--ink-3)] border-[var(--border)]"
-                    }`}
-                  >
+                  <div className="p-2 rounded font-medium flex items-center justify-center gap-1 border bg-[var(--surface-2)] text-[var(--signal)] border-[var(--signal)]/30">
                     <Check className="w-3.5 h-3.5" />
-                    <span>24 Endpoints</span>
+                    <span>OpenAPI 3.0 / 3.1</span>
                   </div>
 
-                  <div
-                    className={`p-2 rounded font-medium flex items-center justify-center gap-1 border transition-colors ${
-                      syncStep >= 2
-                        ? "bg-[var(--surface-2)] text-[var(--signal)] border-[var(--signal)]/30"
-                        : "bg-[var(--surface-3)] text-[var(--ink-3)] border-[var(--border)]"
-                    }`}
-                  >
+                  <div className="p-2 rounded font-medium flex items-center justify-center gap-1 border bg-[var(--surface-2)] text-[var(--signal)] border-[var(--signal)]/30">
                     <Check className="w-3.5 h-3.5" />
-                    <span>48 Mock Rules</span>
+                    <span>Auto Mock Rules</span>
                   </div>
 
-                  <div
-                    className={`p-2 rounded font-medium flex items-center justify-center gap-1 border transition-colors ${
-                      syncStep >= 3
-                        ? "bg-[var(--surface-2)] text-[var(--signal)] border-[var(--signal)]/30"
-                        : "bg-[var(--surface-3)] text-[var(--ink-3)] border-[var(--border)]"
-                    }`}
-                  >
+                  <div className="p-2 rounded font-medium flex items-center justify-center gap-1 border bg-[var(--surface-2)] text-[var(--signal)] border-[var(--signal)]/30">
                     <Link2 className="w-3.5 h-3.5" />
-                    <span className="truncate">petstore.mocklab.dev</span>
+                    <span className="truncate">/m/:slug</span>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between text-xs font-mono text-[var(--ink-2)] px-1">
-                  <span>Auto-generated Faker engine active</span>
+                  <span>Demo mock endpoint: mocklab-api-prod.onrender.com/m/petstore</span>
                   <button
                     onClick={copyMockUrl}
                     className="text-[var(--signal)] hover:underline flex items-center gap-1 text-xs"
@@ -434,7 +417,7 @@ export default function LandingPage() {
             <div className="mt-6 pt-4 bg-[var(--surface-3)] p-3 rounded font-mono text-xs text-[var(--ink-2)] overflow-x-auto border border-[var(--border)] shadow-inner">
               <div className="text-[var(--ink-3)] text-[11px] mb-1"># Terminal cURL trigger</div>
               <code className="text-[var(--ink)] text-[11px]">
-                curl -X POST https://api.mocklab.dev/v1/specs \<br />
+                curl -X POST https://mocklab-api-prod.onrender.com/api/v1/specs \<br />
                 {"  "}-d '{'{"url":"https://petstore.swagger.io/v2/swagger.json"}'}'
               </code>
             </div>
@@ -633,7 +616,7 @@ export default function LandingPage() {
               </div>
               <div className="mt-6 flex items-center gap-2 font-mono text-xs text-[var(--signal)]">
                 <Lock className="w-3.5 h-3.5" />
-                <span>https://*.mocklab.dev</span>
+                <span>https://mocklab-api-prod.onrender.com/m/:slug</span>
               </div>
             </div>
           </div>

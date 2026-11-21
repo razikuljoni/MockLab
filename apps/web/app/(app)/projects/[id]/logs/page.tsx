@@ -104,7 +104,7 @@ export default function TrafficInspectorPage() {
       requestSize: 120,
       responseSize: 240,
       requestHeaders: {
-        host: "petstore.mocklab.dev",
+        host: "mocklab-api-prod.onrender.com",
         "user-agent": "curl/8.4.0",
         accept: "application/json",
         authorization: "[REDACTED]",
@@ -137,7 +137,7 @@ export default function TrafficInspectorPage() {
       requestSize: 84,
       responseSize: 168,
       requestHeaders: {
-        host: "petstore.mocklab.dev",
+        host: "mocklab-api-prod.onrender.com",
         "content-type": "application/json",
         "x-mocklab-scenario": "default",
       },
@@ -174,7 +174,7 @@ export default function TrafficInspectorPage() {
       requestSize: 64,
       responseSize: 512,
       requestHeaders: {
-        host: "petstore.mocklab.dev",
+        host: "mocklab-api-prod.onrender.com",
         accept: "application/json",
       },
       requestBody: null,
@@ -201,7 +201,7 @@ export default function TrafficInspectorPage() {
       requestSize: 110,
       responseSize: 94,
       requestHeaders: {
-        host: "petstore.mocklab.dev",
+        host: "mocklab-api-prod.onrender.com",
         "x-fail": "true",
       },
       requestBody: {
@@ -242,7 +242,8 @@ export default function TrafficInspectorPage() {
 
   // Generate cURL command
   const generateCurl = (log: RequestLogItem) => {
-    let cmd = `curl -X ${log.method} "https://${projectId}.mocklab.dev${log.path}"`;
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com";
+    let cmd = `curl -X ${log.method} "${apiBase}/m/${projectId}${log.path}"`;
     if (log.requestHeaders) {
       for (const [k, v] of Object.entries(log.requestHeaders)) {
         if (!["host", "user-agent", "accept"].includes(k.toLowerCase())) {

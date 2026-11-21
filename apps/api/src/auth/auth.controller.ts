@@ -48,7 +48,8 @@ export class AuthController {
     }
     const result = await this.authService.loginWithGitHub(code);
     const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://mocklab-theta.vercel.app").replace(/\/+$/, "");
-    const redirectUrl = `${appUrl}/auth/callback?token=${encodeURIComponent(
+    // Pass auth payload in URL hash fragment to prevent token leakage to server logs/history
+    const redirectUrl = `${appUrl}/auth/callback#token=${encodeURIComponent(
       result.token
     )}&user=${encodeURIComponent(JSON.stringify(result.user))}`;
     return res.redirect(redirectUrl);

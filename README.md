@@ -143,7 +143,15 @@ Add this step to your GitHub Actions workflow:
 
 ---
 
-## Phase 0 Architecture Decision: Upstash vs Managed Redis
+## Architecture Decision: Project Mock Authentication Default
+
+Per Plan §15.3 and the owner's security requirements:
+- **Default Mock Authentication**: All new projects and workspaces default to `PRIVATE` mock authentication (`mockAuth: PRIVATE`). Inbound requests to `/m/:slug/*` require a valid API key (`x-api-key: mk_...` or `Authorization: Bearer mk_...`).
+- **Public Opt-In**: Workspaces can explicitly configure `mockAuth: PUBLIC` on a per-project basis when building public sandboxes or documentation demos.
+
+---
+
+## Architecture Decision: Upstash vs Managed Redis
 
 Per Plan §12 and the Phase 0 spike assessment:
 - **Spike Context**: The Phase 0 spike specification evaluated architectural requirements and technical constraints; no live benchmark spike was executed against Upstash infrastructure. The decision is based on BullMQ's explicit operational prerequisites for atomic blocking Redis operations and persistent TCP connections.

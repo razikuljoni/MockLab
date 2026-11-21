@@ -15,7 +15,7 @@
 | **Backend REST API** | Render (`mocklab-api-prod`) | [https://mocklab-api-prod.onrender.com](https://mocklab-api-prod.onrender.com) | `GET /health` reports PostgreSQL + Redis connectivity |
 | **Mock Engine Service** | Render (`mocklab-api-prod`) | `https://mocklab-api-prod.onrender.com/m/:slug/*` | Dynamic router with stateful bucket engine & Handlebars |
 | **Database** | Managed PostgreSQL 16 (Neon / Supabase) | Private connection pooler | Auto-migrated on startup (`prisma migrate deploy`) |
-| **Cache & Queue** | Upstash Redis (TCP protocol) | Managed TCP Redis | Rate limits, stateful scenarios, BullMQ retry queues |
+| **Cache & Queue** | Managed TCP Redis (Render / Railway) | Managed TCP Redis | Rate limits, stateful scenarios, BullMQ retry queues |
 
 ---
 

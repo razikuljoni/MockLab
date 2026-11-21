@@ -65,8 +65,8 @@ export default function PrivacyPage() {
         <section className="space-y-3">
           <h2 className="text-base font-semibold text-[var(--ink)]">5. Inquiries &amp; Data Rights</h2>
           <p>
-            To request data export or account removal, file an issue on our GitHub repository or contact
-            privacy@mocklab.dev.
+            To request data export or account removal, file an issue on our GitHub repository or contact the project maintainer at
+            razikuljoni@gmail.com.
           </p>
         </section>
       </div>

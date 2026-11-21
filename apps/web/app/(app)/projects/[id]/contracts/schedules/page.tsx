@@ -45,7 +45,7 @@ export default function ContractSchedulesPage() {
       lastVerdict: "BREAKING",
       lastRunTime: "18 minutes ago",
       nextRunTime: "in 42 minutes",
-      notifyEmail: "dev-alerts@mocklab.dev",
+      notifyEmail: "alerts@example.com",
     },
     {
       id: "sched_2",
@@ -56,7 +56,7 @@ export default function ContractSchedulesPage() {
       lastVerdict: "PASS",
       lastRunTime: "yesterday at 00:00",
       nextRunTime: "in 23 hours",
-      notifyEmail: "backend-team@mocklab.dev",
+      notifyEmail: "team@example.com",
     },
     {
       id: "sched_3",
@@ -67,7 +67,7 @@ export default function ContractSchedulesPage() {
       lastVerdict: null,
       lastRunTime: "Never",
       nextRunTime: "Disabled",
-      notifyEmail: "leads@mocklab.dev",
+      notifyEmail: "leads@example.com",
     },
   ]);
 

@@ -95,7 +95,7 @@ export default function ProjectsPage() {
       name: newProjectName,
       slug,
       environment: "dev",
-      mockUrl: `https://${slug}.mocklab.dev`,
+      mockUrl: `${process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com"}/m/${slug}`,
       endpointsCount: 0,
       rulesCount: 0,
       requestsToday: 0,
@@ -337,7 +337,7 @@ export default function ProjectsPage() {
               <div className="space-y-1.5">
                 <label className="font-medium text-[var(--ink)]">URL Slug</label>
                 <div className="flex items-center rounded-md border border-[var(--border)] bg-[var(--surface-0)] px-3 text-[var(--ink-3)] font-mono">
-                  <span>https://</span>
+                  <span>https://mocklab-api-prod.onrender.com/m/</span>
                   <input
                     type="text"
                     required
@@ -346,7 +346,6 @@ export default function ProjectsPage() {
                     placeholder="users-service"
                     className="flex-1 bg-transparent py-2 px-1 text-[var(--ink)] focus:outline-none"
                   />
-                  <span>.mocklab.dev</span>
                 </div>
               </div>
 

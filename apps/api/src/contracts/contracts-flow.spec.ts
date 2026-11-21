@@ -191,4 +191,24 @@ describe("Phase 8 Contract Tests Acceptance Suite", () => {
     expect(completedRun?.status).not.toBe(RunStatus.PENDING);
     expect(completedRun?.results).toBeDefined();
   });
+
+  it("Fails closed if SECRET_ENCRYPTION_KEY is unset in non-test environment", () => {
+    const origEnv = process.env.NODE_ENV;
+    const origKey = process.env.SECRET_ENCRYPTION_KEY;
+    const origEncKey = process.env.ENCRYPTION_KEY;
+
+    try {
+      process.env.NODE_ENV = "production";
+      delete process.env.SECRET_ENCRYPTION_KEY;
+      delete process.env.ENCRYPTION_KEY;
+
+      expect(() => new ContractRunnerService(dataStore, new AjvSchemaValidatorService())).toThrow(
+        "FATAL: SECRET_ENCRYPTION_KEY environment variable is required"
+      );
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      if (origKey) process.env.SECRET_ENCRYPTION_KEY = origKey;
+      if (origEncKey) process.env.ENCRYPTION_KEY = origEncKey;
+    }
+  });
 });
