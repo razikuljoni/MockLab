@@ -16,3 +16,8 @@ prisma/dev.db-journal
 *.tsbuildinfo
 test-results/
 playwright-report/
+
+# Tooling and AI Agent Caches
+.gitnexus/
+.github/context-mode/
+.claude/
