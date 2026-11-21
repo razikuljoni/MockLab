@@ -436,9 +436,11 @@ export class DataStoreService {
 
   async findProjectById(id: string): Promise<ProjectRecord | null> {
     if (this.isConnectedToPrisma) {
-      return (await this.prisma.project.findUnique({ where: { id } })) as ProjectRecord | null;
+      const byId = await this.prisma.project.findUnique({ where: { id } });
+      if (byId) return byId as ProjectRecord;
+      return (await this.prisma.project.findFirst({ where: { slug: id } })) as ProjectRecord | null;
     }
-    return this.projects.get(id) || null;
+    return this.projects.get(id) || Array.from(this.projects.values()).find((p) => p.slug === id) || null;
   }
 
   async findProjectBySlug(workspaceId: string, slug: string): Promise<ProjectRecord | null> {
