@@ -30,7 +30,7 @@ export default function TermsPage() {
           <h2 className="text-base font-semibold text-[var(--ink)]">1. Introduction &amp; Acceptance</h2>
           <p>
             Welcome to MockLab. By accessing or using our developer platform, API virtualization services,
-            or contract test suite at mocklab.dev or related subdomains, you agree to be bound by these Terms of Service.
+            or contract test suite at mocklab-theta.vercel.app or related services, you agree to be bound by these Terms of Service.
             If you do not agree to these terms, please do not use the service.
           </p>
         </section>
@@ -77,7 +77,7 @@ export default function TermsPage() {
           <h2 className="text-base font-semibold text-[var(--ink)]">6. Contact Information</h2>
           <p>
             For questions regarding these Terms, contact us via our public GitHub repository discussions or at
-            team-alerts@mocklab.dev.
+            razikuljoni@gmail.com.
           </p>
         </section>
       </div>

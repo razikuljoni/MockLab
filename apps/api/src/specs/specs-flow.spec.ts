@@ -80,7 +80,7 @@ paths:
     expect(result.version).toBe(1);
     expect(result.operationsCount).toBe(3);
     expect(result.issues.filter((i) => i.severity === "error").length).toBe(0);
-    expect(result.mockUrl).toBe("https://petstore.mocklab.dev");
+    expect(result.mockUrl).toBe("https://mocklab-api-prod.onrender.com/m/petstore");
     expect(result.hash).toBeDefined();
 
     // Verify rules were generated
@@ -171,5 +171,26 @@ paths:
     expect(updatedRule?.edited).toBe(true);
     expect(updatedRule?.name).toBe("Custom Human Edited Rule");
     expect(updatedRule?.response.body[0].id).toBe(999);
+  });
+
+  it("SSRF Guard: blocks IPv6 loopback, unique-local, mapped IPv4, and metadata addresses", async () => {
+    await expect(specsService.fetchSpecFromUrl("http://[::1]/spec.yaml")).rejects.toThrow(BadRequestException);
+    await expect(specsService.fetchSpecFromUrl("http://[fd00::1]/spec.yaml")).rejects.toThrow(BadRequestException);
+    await expect(specsService.fetchSpecFromUrl("http://[fe80::1]/spec.yaml")).rejects.toThrow(BadRequestException);
+    await expect(specsService.fetchSpecFromUrl("http://[::ffff:127.0.0.1]/spec.yaml")).rejects.toThrow(BadRequestException);
+    await expect(specsService.fetchSpecFromUrl("http://127.0.0.1/spec.yaml")).rejects.toThrow(BadRequestException);
+    await expect(specsService.fetchSpecFromUrl("http://169.254.169.254/latest/meta-data")).rejects.toThrow(BadRequestException);
+    await expect(specsService.fetchSpecFromUrl("http://10.0.0.1/spec.yaml")).rejects.toThrow(BadRequestException);
+  });
+
+  it("SSRF Guard: re-validates redirect targets and blocks redirects to private addresses", async () => {
+    await expect(specsService.validateSafeUrl("http://127.0.0.1:8080/spec.json")).rejects.toThrow(BadRequestException);
+    await expect(specsService.validateSafeUrl("http://localhost:3001/spec.json")).rejects.toThrow(BadRequestException);
+    await expect(specsService.validateSafeUrl("http://169.254.169.254/secret")).rejects.toThrow(BadRequestException);
+  });
+
+  it("SSRF Guard: blocks DNS-rebinding resolving to loopback or private addresses", async () => {
+    await expect(specsService.validateSafeUrl("http://localhost/spec.yaml")).rejects.toThrow(BadRequestException);
+    await expect(specsService.validateSafeUrl("http://api.internal/spec.yaml")).rejects.toThrow(BadRequestException);
   });
 });

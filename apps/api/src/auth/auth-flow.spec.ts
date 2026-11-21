@@ -23,7 +23,7 @@ describe("Phase 1 Auth & Workspaces Acceptance Suite", () => {
 
   it("User signs up -> automatically creates workspace with OWNER role and seeds Petstore demo", async () => {
     const res = await authService.signup({
-      email: "owner@mocklab.dev",
+      email: "owner@example.com",
       password: "Password123!",
       name: "Owner User",
       workspaceName: "Acme Engineering",
@@ -31,7 +31,7 @@ describe("Phase 1 Auth & Workspaces Acceptance Suite", () => {
     });
 
     expect(res.token).toBeDefined();
-    expect(res.user.email).toBe("owner@mocklab.dev");
+    expect(res.user.email).toBe("owner@example.com");
     expect(res.workspace.name).toBe("Acme Engineering");
 
     // Verify creator is OWNER
@@ -48,23 +48,23 @@ describe("Phase 1 Auth & Workspaces Acceptance Suite", () => {
   it("Full invitation lifecycle: Owner invites second user -> second user sees workspace with assigned role", async () => {
     // 1. Sign up Owner
     const ownerRes = await authService.signup({
-      email: "owner@mocklab.dev",
+      email: "owner@example.com",
       password: "Password123!",
       workspaceName: "TechCorp",
     });
 
     // 2. Owner invites a second user as VIEWER
     const inviteRes = await workspacesService.inviteMember(ownerRes.workspace.id, ownerRes.user.id, {
-      email: "guest@mocklab.dev",
+      email: "guest@example.com",
       role: Role.VIEWER,
     });
 
     expect(inviteRes.success).toBe(true);
-    expect(inviteRes.member.email).toBe("guest@mocklab.dev");
+    expect(inviteRes.member.email).toBe("guest@example.com");
     expect(inviteRes.member.role).toBe(Role.VIEWER);
 
     // 3. Second user registers/logs in
-    const guestUser = await dataStore.findUserByEmail("guest@mocklab.dev");
+    const guestUser = await dataStore.findUserByEmail("guest@example.com");
     expect(guestUser).toBeDefined();
 
     // 4. Second user lists their workspaces -> sees TechCorp with VIEWER role
@@ -76,22 +76,22 @@ describe("Phase 1 Auth & Workspaces Acceptance Suite", () => {
 
   it("Enforces role security: Viewer cannot invite members or manage workspace", async () => {
     const ownerRes = await authService.signup({
-      email: "owner@mocklab.dev",
+      email: "owner@example.com",
       password: "Password123!",
       workspaceName: "SecureCorp",
     });
 
     await workspacesService.inviteMember(ownerRes.workspace.id, ownerRes.user.id, {
-      email: "viewer@mocklab.dev",
+      email: "viewer@example.com",
       role: Role.VIEWER,
     });
 
-    const viewerUser = (await dataStore.findUserByEmail("viewer@mocklab.dev"))!;
+    const viewerUser = (await dataStore.findUserByEmail("viewer@example.com"))!;
 
     // Viewer attempts to invite someone -> should throw ForbiddenException
     await expect(
       workspacesService.inviteMember(ownerRes.workspace.id, viewerUser.id, {
-        email: "third@mocklab.dev",
+        email: "third@example.com",
         role: Role.EDITOR,
       })
     ).rejects.toThrow(ForbiddenException);
@@ -104,29 +104,29 @@ describe("Phase 1 Auth & Workspaces Acceptance Suite", () => {
 
   it("Rejects duplicate email signup and invalid login credentials", async () => {
     await authService.signup({
-      email: "alice@mocklab.dev",
+      email: "alice@example.com",
       password: "Password123!",
     });
 
     await expect(
       authService.signup({
-        email: "alice@mocklab.dev",
+        email: "alice@example.com",
         password: "Password456!",
       })
     ).rejects.toThrow(ConflictException);
 
     await expect(
       authService.login({
-        email: "alice@mocklab.dev",
+        email: "alice@example.com",
         password: "WrongPassword!",
       })
     ).rejects.toThrow(UnauthorizedException);
 
     const loginRes = await authService.login({
-      email: "alice@mocklab.dev",
+      email: "alice@example.com",
       password: "Password123!",
     });
     expect(loginRes.token).toBeDefined();
-    expect(loginRes.user.email).toBe("alice@mocklab.dev");
+    expect(loginRes.user.email).toBe("alice@example.com");
   });
 });

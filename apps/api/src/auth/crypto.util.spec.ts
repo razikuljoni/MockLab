@@ -12,13 +12,13 @@ describe("CryptoUtil", () => {
 
   it("signs and verifies JWT tokens", () => {
     const secret = "test-secret-key-at-least-32-chars-long";
-    const payload = { userId: "user-123", email: "test@mocklab.dev" };
+    const payload = { userId: "user-123", email: "test@example.com" };
     const token = CryptoUtil.signJwt(payload, secret, 3600);
 
     const verified = CryptoUtil.verifyJwt<typeof payload>(token, secret);
     expect(verified).not.toBeNull();
     expect(verified?.userId).toBe("user-123");
-    expect(verified?.email).toBe("test@mocklab.dev");
+    expect(verified?.email).toBe("test@example.com");
 
     // Invalid secret
     expect(CryptoUtil.verifyJwt(token, "wrong-secret")).toBeNull();

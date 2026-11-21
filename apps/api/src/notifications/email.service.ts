@@ -37,7 +37,7 @@ export class EmailService {
           Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
         },
         body: JSON.stringify({
-          from: "MockLab CI <alerts@mocklab.dev>",
+          from: process.env.EMAIL_FROM || "MockLab CI <onboarding@resend.dev>",
           to: recipientEmail,
           subject: `[BREAKING CHANGE] Contract test failed for ${projectName}`,
           html: `<h2>Contract Breaking Change Detected</h2><p>Run ID: ${runId}</p><ul>${breakingDiffs

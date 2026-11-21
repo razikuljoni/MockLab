@@ -117,7 +117,9 @@ POLL_PATH=$(echo "$RESPONSE" | grep -o '"pollUrl":"[^"]*' | cut -d'"' -f4)
 curl -s "https://mocklab-api-prod.onrender.com$POLL_PATH" -H "Authorization: Bearer $MOCKLAB_API_KEY"
 `;
 
-  const badgeMarkdown = `[![MockLab contract](https://mocklab.dev/api/v1/projects/${projectId}/badge)](https://mocklab.dev/projects/${projectId})`;
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com";
+  const appBase = process.env.NEXT_PUBLIC_APP_URL || "https://mocklab-theta.vercel.app";
+  const badgeMarkdown = `[![MockLab contract](${apiBase}/api/v1/projects/${projectId}/badge)](${appBase}/projects/${projectId})`;
 
   return (
     <div className="min-h-screen bg-[#101208] text-white font-sans">

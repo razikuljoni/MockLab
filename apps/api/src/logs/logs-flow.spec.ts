@@ -201,7 +201,7 @@ describe("Phase 7 Traffic Inspector Acceptance Suite", () => {
         cookie: "session=sensitive_cookie_value",
       },
       body: {
-        email: "alice@mocklab.dev",
+        email: "alice@example.com",
         password: "MySuperSecretPassword!2026",
       },
     };
@@ -221,7 +221,7 @@ describe("Phase 7 Traffic Inspector Acceptance Suite", () => {
     expect(log.requestHeaders?.["cookie"]).toBe("[REDACTED]");
 
     // Verify body password redaction
-    expect(log.requestBody?.email).toBe("alice@mocklab.dev");
+    expect(log.requestBody?.email).toBe("alice@example.com");
     expect(log.requestBody?.password).toBe("[REDACTED]");
   });
 

@@ -87,7 +87,7 @@ export class CiController {
 
   /**
    * Public SVG Status Badge Endpoint (§6.8 & §10)
-   * e.g. [![MockLab Contract](https://mocklab.dev/api/v1/projects/:id/badge)](...)
+   * e.g. [![MockLab Contract](https://mocklab-api-prod.onrender.com/api/v1/projects/:id/badge)](...)
    */
   @Get("badge")
   async getStatusBadge(@Param("id") projectId: string, @Res() res: Response) {

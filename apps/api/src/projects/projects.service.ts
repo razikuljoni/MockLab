@@ -48,7 +48,7 @@ export class ProjectsService {
 
     return {
       ...project,
-      mockUrl: `https://${project.slug}.mocklab.dev`,
+      mockUrl: `${(process.env.API_BASE_URL || "https://mocklab-api-prod.onrender.com").replace(/\/+$/, "")}/m/${project.slug}`,
       localMockUrl: `http://localhost:3001/m/${project.slug}`,
       specVersion: latestSpec?.version || null,
       rulesCount: rules.length,

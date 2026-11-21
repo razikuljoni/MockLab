@@ -271,7 +271,7 @@ export class DataStoreService {
       slug: data.slug.toLowerCase(),
       plan: data.plan || Plan.FREE,
       defaultEnv: data.defaultEnv || "development",
-      mockAuthDefault: data.mockAuthDefault || "PUBLIC",
+      mockAuthDefault: data.mockAuthDefault || "PRIVATE",
       logRetentionDays: data.logRetentionDays || 7,
       createdAt: new Date(),
     };

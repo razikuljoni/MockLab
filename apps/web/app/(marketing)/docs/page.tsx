@@ -12,7 +12,7 @@ export default function DocsPage() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const quickstartCurl = `curl -X POST https://api.mocklab.dev/api/v1/auth/signup \\
+  const quickstartCurl = `curl -X POST https://mocklab-api-prod.onrender.com/api/v1/auth/signup \\
   -H "Content-Type: application/json" \\
   -d '{"email":"dev@company.com","password":"Password123!","workspaceName":"Acme"}'`;
 
@@ -28,7 +28,7 @@ jobs:
         env:
           MOCKLAB_API_KEY: \${{ secrets.MOCKLAB_API_KEY }}
         run: |
-          curl -s -X POST "https://api.mocklab.dev/api/v1/projects/petstore/contract-runs" \\
+          curl -s -X POST "https://mocklab-api-prod.onrender.com/api/v1/projects/petstore/contract-runs" \\
             -H "Authorization: Bearer $MOCKLAB_API_KEY" \\
             -H "Content-Type: application/json" \\
             --fail-with-body`;
@@ -72,13 +72,13 @@ jobs:
           <div className="p-4 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] space-y-2">
             <h3 className="font-semibold text-[var(--ink)]">Step 2: Inspect the mock endpoint</h3>
             <p className="text-[var(--ink-2)]">
-              Every project receives a dedicated base URL: <code className="text-[var(--signal)]">https://&lt;slug&gt;.mocklab.dev</code>.
+              Every project receives a dedicated mock endpoint: <code className="text-[var(--signal)]">https://mocklab-api-prod.onrender.com/m/&lt;slug&gt;</code>.
               Send your first request from terminal or the browser:
             </p>
             <div className="relative rounded bg-[var(--surface-3)] p-3 font-mono text-[11px] text-[var(--ink)]">
-              <code>curl -i https://petstore.mocklab.dev/pets/42</code>
+              <code>curl -i https://mocklab-api-prod.onrender.com/m/petstore/pets/42</code>
               <button
-                onClick={() => copyCode("curl -i https://petstore.mocklab.dev/pets/42", 1)}
+                onClick={() => copyCode("curl -i https://mocklab-api-prod.onrender.com/m/petstore/pets/42", 1)}
                 className="absolute top-2 right-2 p-1 rounded hover:bg-[var(--surface-2)] text-[var(--ink-3)]"
               >
                 {copiedIndex === 1 ? <Check className="w-3.5 h-3.5 text-[var(--signal)]" /> : <Copy className="w-3.5 h-3.5" />}

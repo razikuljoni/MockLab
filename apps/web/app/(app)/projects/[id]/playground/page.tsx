@@ -216,7 +216,8 @@ export default function PlaygroundPage() {
 
   // Snippet generators
   const generateCurl = () => {
-    return `curl -i -X ${method} "https://${projectId}.mocklab.dev${path}" \\
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com";
+    return `curl -i -X ${method} "${apiBase}/m/${projectId}${path}" \\
   -H "Accept: application/json"${
     authType === "bearer" && authToken ? ` \\\n  -H "Authorization: Bearer ${authToken}"` : ""
   }`;
@@ -648,20 +649,22 @@ export default function PlaygroundPage() {
                   <span>{copiedCode === "curl" ? "Copied" : "Copy cURL"}</span>
                 </button>
                 <button
-                  onClick={() =>
-                    copySnippet("fetch", `fetch("https://${projectId}.mocklab.dev${path}");`)
-                  }
+                  onClick={() => {
+                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com";
+                    copySnippet("fetch", `fetch("${apiBase}/m/${projectId}${path}");`);
+                  }}
                   className="px-2 py-1 rounded hover:bg-[var(--surface-2)] text-[var(--ink-3)] text-[11px]"
                 >
                   fetch
                 </button>
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    const apiBase = process.env.NEXT_PUBLIC_API_URL || "https://mocklab-api-prod.onrender.com";
                     copySnippet(
                       "python",
-                      `import requests\nresp = requests.${method.toLowerCase()}("https://${projectId}.mocklab.dev${path}")`
-                    )
-                  }
+                      `import requests\nresp = requests.${method.toLowerCase()}("${apiBase}/m/${projectId}${path}")`
+                    );
+                  }}
                   className="px-2 py-1 rounded hover:bg-[var(--surface-2)] text-[var(--ink-3)] text-[11px]"
                 >
                   Python

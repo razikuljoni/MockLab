@@ -8,8 +8,20 @@ function CallbackContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const token = searchParams.get("token");
-    const userJson = searchParams.get("user");
+    // Read token and user from URL hash fragment (preferred for privacy) or search query parameters
+    let token: string | null = null;
+    let userJson: string | null = null;
+
+    if (typeof window !== "undefined" && window.location.hash) {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      token = hashParams.get("token");
+      userJson = hashParams.get("user");
+    }
+
+    if (!token) {
+      token = searchParams.get("token");
+      userJson = searchParams.get("user");
+    }
 
     if (token) {
       localStorage.setItem("mocklab_token", token);
@@ -19,6 +31,10 @@ function CallbackContent() {
         } catch {
           // ignore parsing error
         }
+      }
+      // Clean address bar immediately so credentials do not persist in browser history
+      if (typeof window !== "undefined") {
+        window.history.replaceState(null, document.title, window.location.pathname);
       }
       router.replace("/dashboard");
     } else {

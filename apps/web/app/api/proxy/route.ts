@@ -9,20 +9,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing destination URL" }, { status: 400 });
     }
 
-    // Resolve localhost / internal API mapping if needed
+    // Resolve destination URL
     let targetUrl = url;
-    if (targetUrl.includes(".mocklab.dev")) {
-      try {
-        const parsed = new URL(targetUrl);
-        if (parsed.hostname.endsWith(".mocklab.dev")) {
-          const slug = parsed.hostname.split(".")[0];
-          const restPath = parsed.pathname + parsed.search;
-          const apiBase = getApiBaseUrl();
-          targetUrl = `${apiBase.replace(/\/+$/, "")}/m/${slug}${restPath}`;
-        }
-      } catch {
-        // Fallback if URL constructor fails
-      }
+    if (targetUrl.startsWith("/")) {
+      const apiBase = getApiBaseUrl();
+      targetUrl = `${apiBase.replace(/\/+$/, "")}${targetUrl}`;
     }
 
     const startTime = Date.now();

@@ -86,10 +86,13 @@ export default function MarketingLayout({
               Docs
             </Link>
 
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--surface-1)] font-mono text-[11px] text-[var(--ink-2)] border border-[var(--border)]">
+            <Link
+              href="/status"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded bg-[var(--surface-1)] font-mono text-[11px] text-[var(--ink-2)] border border-[var(--border)] hover:text-[var(--ink)] transition-colors"
+            >
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--signal)] animate-pulse" />
-              <span>Status: 99.99%</span>
-            </div>
+              <span>Status: Operational</span>
+            </Link>
 
             <Link
               href="https://github.com/razikuljoni/MockLab"
