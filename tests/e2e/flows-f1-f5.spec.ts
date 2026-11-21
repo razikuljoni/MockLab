@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () => {
+test.describe.serial("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () => {
   const apiBaseUrl =
     process.env.PLAYWRIGHT_API_BASE_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
@@ -26,9 +26,23 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
     const signupData = await signupRes.json();
     expect(signupData.token).toBeDefined();
 
+    // Dynamically retrieve seeded Petstore project id
+    let projectId = "petstore";
+    if (signupData.workspace?.id) {
+      const projectsRes = await request.get(
+        `${apiBaseUrl}/api/v1/workspaces/${signupData.workspace.id}/projects`,
+        { headers: { Authorization: `Bearer ${signupData.token}` } }
+      );
+      if (projectsRes.ok()) {
+        const projects = await projectsRes.json();
+        const p = projects.find((x: any) => x.slug === "petstore") || projects[0];
+        if (p?.id) projectId = p.id;
+      }
+    }
+
     // 2. Import OpenAPI Petstore spec against real API
     const importRes = await request.post(
-      `${apiBaseUrl}/api/v1/projects/petstore/spec/import`,
+      `${apiBaseUrl}/api/v1/projects/${projectId}/spec/import`,
       {
         headers: { Authorization: `Bearer ${signupData.token}` },
         data: {
@@ -120,7 +134,7 @@ test.describe("MockLab Plan §11 Acceptance Suite: Flows F1–F5 Live E2E", () =
     const body = await notFoundRes.json();
 
     expect(body.error).toBe("Unmatched Request");
-    expect(body.message).toContain("No matching mock rule");
+    expect(body.message).toContain("No mock rule matched");
     expect(body.nearMiss).toBeDefined();
     expect(body.nearMiss.closestRule).toBeDefined();
     expect(body.nearMiss.missedField).toBeDefined();

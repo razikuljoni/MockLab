@@ -435,7 +435,10 @@ export class MockController {
       await this.dataStore.updateMockRule(rule.id, { hitCount: rule.hitCount + 1 });
 
       // Apply Injected Latency (§9.3)
-      const latencyMs = rule.response?.latencyMs || 0;
+      const headerDelay = req.headers["x-injected-delay"]
+        ? parseInt(req.headers["x-injected-delay"] as string, 10)
+        : 0;
+      const latencyMs = headerDelay > 0 ? headerDelay : (rule.response?.latencyMs || 0);
       if (latencyMs > 0) {
         await new Promise((r) => setTimeout(r, Math.min(latencyMs, 5000)));
       }

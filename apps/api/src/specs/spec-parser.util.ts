@@ -291,6 +291,9 @@ export class SpecParserUtil {
           const jsonContent = responseDef.content["application/json"];
           schema = jsonContent.schema;
           bodyExample = jsonContent.example || (jsonContent.examples && (Object.values(jsonContent.examples)[0] as any)?.value);
+        } else if (responseDef.schema) {
+          schema = responseDef.schema;
+          bodyExample = responseDef.example;
         }
 
         if (!bodyExample && responseDef.example) {
