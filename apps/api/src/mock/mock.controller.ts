@@ -435,12 +435,25 @@ export class MockController {
       await this.dataStore.updateMockRule(rule.id, { hitCount: rule.hitCount + 1 });
 
       // Apply Injected Latency (§9.3)
-      const headerDelay = req.headers["x-injected-delay"]
-        ? parseInt(req.headers["x-injected-delay"] as string, 10)
-        : 0;
-      const latencyMs = headerDelay > 0 ? headerDelay : (rule.response?.latencyMs || 0);
+      let latencyMs = rule.response?.latencyMs ? Math.min(rule.response.latencyMs, 5000) : 0;
+      const injectedDelayHeader = req.headers["x-injected-delay"];
+      if (injectedDelayHeader) {
+        // Enforce safe constant allowlist to prevent user-controlled timer taint (CWE-400)
+        const ALLOWED_DELAYS: Record<string, number> = {
+          "50": 50,
+          "100": 100,
+          "150": 150,
+          "200": 200,
+          "250": 250,
+          "500": 500,
+        };
+        const safeDelay = ALLOWED_DELAYS[String(injectedDelayHeader)];
+        if (safeDelay) {
+          latencyMs = safeDelay;
+        }
+      }
       if (latencyMs > 0) {
-        await new Promise((r) => setTimeout(r, Math.min(latencyMs, 5000)));
+        await new Promise((r) => setTimeout(r, latencyMs));
       }
 
       // Handle Fault Injection (§9.3)
