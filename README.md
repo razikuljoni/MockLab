@@ -25,7 +25,7 @@ MockLab is a high-performance, developer-first API mocking and contract-testing 
 - **Traffic Inspector**: Non-blocking asynchronous batch queue with sensitive auth header redaction, 100 KB payload safety cap, and 1-click "Create rule from request".
 - **Contract Drift Verification**: Deep structural JSON diffing with strict `PASS`, `BREAKING`, `NON_BREAKING`, and `ERROR` classification and live provider verification.
 - **Automated CI Integration**: Copyable GitHub Actions YAML, exit-code pipeline gates, scheduled automated sweeps, and dynamic SVG badges.
-- **Multi-Tenant RBAC & Security**: Stripe-style API tokens (`mk_live_`, `mk_test_`), in-memory fixed 60-second window rate limiting (`Map<string, { windowStart, count }>`) per API key or client IP with monthly quota tracking, and Owner/Admin/Editor/Viewer role matrix.
+- **Multi-Tenant RBAC & Security**: Stripe-style API tokens (`mk_live_`, `mk_test_`), Redis-backed sliding-window rate limiting with in-memory fallback per API key or client IP with monthly quota tracking, and Owner/Admin/Editor/Viewer role matrix.
 
 ---
 
